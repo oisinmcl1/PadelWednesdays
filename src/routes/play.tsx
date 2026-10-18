@@ -49,8 +49,6 @@ async function startPage(c: Context<AppEnv>, form: StartForm, error?: string) {
   );
 }
 
-const MAX_GAMES_TILE = 10;
-
 async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
   // Normally a no-op; tops up the schedule if results were edited behind our back.
   await sessions.ensureUpcoming(c.env.DB, session.id);
@@ -69,7 +67,7 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
 
   const ScoreTiles = ({ team }: { team: "a" | "b" }) => (
     <div class="score-tiles" role="radiogroup" aria-label={`Games for team ${team.toUpperCase()}`}>
-      {Array.from({ length: MAX_GAMES_TILE + 1 }, (_, n) => (
+      {Array.from({ length: sessions.WIN_GAMES + 1 }, (_, n) => (
         <label class="tile">
           <input type="radio" name={team} value={String(n)} required />
           <span>{n}</span>
@@ -92,7 +90,18 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           {formatDate(session.date)} · Match {current.seq}
           {ballTurn !== null && <> · Balls: {name.get(ballTurn)}</>}
         </p>
-        <form method="post" action={`/matches/${current.id}/result`} class="match current" data-autosubmit>
+        {c.req.query("bad") === "1" && (
+          <p class="error" role="alert">
+            That score can't happen: the winners have {sessions.WIN_GAMES}, the losers 0–{sessions.WIN_GAMES - 1}.
+          </p>
+        )}
+        <form
+          method="post"
+          action={`/matches/${current.id}/result`}
+          class="match current"
+          data-autosubmit
+          data-first-to={String(sessions.WIN_GAMES)}
+        >
           <div class="team">{names(current.a1, current.a2).map((n) => <span>{n}</span>)}</div>
           <ScoreTiles team="a" />
           <div class="vs">vs</div>
@@ -100,7 +109,10 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           <ScoreTiles team="b" />
           {current.sit1 !== null && <p class="sitting">Sitting out: {names(current.sit1, current.sit2).join(" & ")}</p>}
           <button class="save">Save result</button>
-          <p class="hint">Over {MAX_GAMES_TILE} games? An admin can edit the score after.</p>
+          <p class="hint" data-score-hint>
+            First to {sessions.WIN_GAMES}. On {sessions.WIN_GAMES - 1} you're on match point; lose a game there and you
+            drop back.
+          </p>
         </form>
 
         {last && (
@@ -241,7 +253,8 @@ play.post("/sessions/end", async (c) => {
 play.post("/matches/:id{[0-9]+}/result", async (c) => {
   const body = await c.req.parseBody();
   const games = sessions.parseGames(body.a, body.b);
-  if (games) await sessions.logResult(c.env.DB, Number(c.req.param("id")), games);
+  if (!games) return c.redirect("/?bad=1", 303);
+  await sessions.logResult(c.env.DB, Number(c.req.param("id")), games);
   return c.redirect("/", 303);
 });
 
@@ -262,7 +275,9 @@ play.post("/matches/:id{[0-9]+}/edit", requireAdmin, async (c) => {
   if (!match || match.games_a === null) return c.notFound();
   const body = await c.req.parseBody();
   const games = sessions.parseGames(body.a, body.b);
-  if (!games) return editPage(c, match, "Enter games for both teams (0–99, not both 0).");
+  if (!games) {
+    return editPage(c, match, `The winners need ${sessions.WIN_GAMES} games and the losers 0–${sessions.WIN_GAMES - 1}.`);
+  }
   await sessions.editResult(c.env.DB, match.id, games);
   return c.redirect(await backFromEdit(c.env.DB, match.session_id), 303);
 });
@@ -284,11 +299,11 @@ async function editPage(c: Context<AppEnv>, m: sessions.MatchRow & { session_id:
       <form method="post" class="stack">
         <label>
           {team(m.a1, m.a2)}
-          <input name="a" value={String(m.games_a)} inputmode="numeric" pattern="[0-9]{1,2}" required />
+          <input name="a" value={String(m.games_a)} inputmode="numeric" pattern="[0-9]" required />
         </label>
         <label>
           {team(m.b1, m.b2)}
-          <input name="b" value={String(m.games_b)} inputmode="numeric" pattern="[0-9]{1,2}" required />
+          <input name="b" value={String(m.games_b)} inputmode="numeric" pattern="[0-9]" required />
         </label>
         <button class="big">Save</button>
         <a href={await backFromEdit(c.env.DB, m.session_id)} class="button secondary">Cancel</a>

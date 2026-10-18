@@ -242,12 +242,20 @@ export async function ensureUpcoming(db: D1Database, sessionId: number): Promise
 
 // ---------- results ----------
 
-/** Games per team: whole numbers 0-99, not both zero. Draws are allowed. */
+/**
+ * Matches are first to 5 games. Reaching 4 puts you on match point; you must win
+ * the next game from there, and losing a game on match point drops you back to 3.
+ * So every final score is 5 for the winner and 0-4 for the loser. No draws.
+ */
+export const WIN_GAMES = 5;
+
+/** Parses a final score. Valid: one team on WIN_GAMES, the other on 0 to WIN_GAMES - 1. */
 export function parseGames(a: unknown, b: unknown): [number, number] | null {
   const ok = (v: unknown) => typeof v === "string" && /^\d{1,2}$/.test(v);
   if (!ok(a) || !ok(b)) return null;
   const [ga, gb] = [Number(a), Number(b)];
-  return ga + gb === 0 ? null : [ga, gb];
+  const valid = Math.max(ga, gb) === WIN_GAMES && Math.min(ga, gb) < WIN_GAMES;
+  return valid ? [ga, gb] : null;
 }
 
 export async function getMatch(db: D1Database, matchId: number): Promise<(MatchRow & { session_id: number }) | null> {

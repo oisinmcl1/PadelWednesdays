@@ -67,8 +67,10 @@ Picks teams, logs results, tracks stats, splits the court cost. Used on phones
 6. Recap image, manifest, deploy.
 7. Later: pre-match odds, left/right side tracking.
 
-## Open decisions
-- Scoring format (timed rounds / first to N games / sets). Store games per team for now.
+## Scoring
+- First to 5 games. On 4 you're on match point: win the next game to win the match,
+  lose a game on match point and you drop back to 3. Final scores are always 5–0 to 5–4;
+  no draws. (`WIN_GAMES` in src/sessions.ts.)
 
 ## How to work
 - Work autonomously through the phases; no go-ahead needed between them.
