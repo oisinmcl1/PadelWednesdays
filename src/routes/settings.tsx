@@ -67,7 +67,7 @@ settings.post("/", async (c) => {
   const cents = parseMoney(form.price);
   if (cents === null) return page(c, form, "Invalid price.");
   if (form.revolut && !/^https:\/\/revolut\.me\/[A-Za-z0-9._-]+\/?$/.test(form.revolut)) {
-    return page(c, form, "Should be a https://revolut.me/… link.");
+    return page(c, form, "Should be a revolut.me link.");
   }
   const payerId = form.payer ? Number(form.payer) : null;
   if (payerId !== null && !(await db.getPlayer(c.env.DB, payerId))) return page(c, form, "Unknown player.");

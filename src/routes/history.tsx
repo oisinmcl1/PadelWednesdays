@@ -92,12 +92,13 @@ history.get("/:id{[0-9]+}", async (c) => {
               s.player_id === session.payer_id ? (
                 <li>
                   <span class="name">{name.get(s.player_id)}</span>
-                  <span class="hint">paid the court</span>
+                  <span class="hint">{formatMoney(s.share_cents ?? 0)} · paid the court</span>
                 </li>
               ) : (
                 <li>
                   <span class="name">{name.get(s.player_id)}</span>
-                  <span>{formatMoney(s.share_cents ?? 0)}</span>
+                  {/* The amount shows once: on the Pay button when there is one. */}
+                  {(s.paid_at || !settings.revolutUrl) && <span>{formatMoney(s.share_cents ?? 0)}</span>}
                   {s.paid_at ? <span class="ok">Paid</span> : <PayButton cents={s.share_cents ?? 0} url={settings.revolutUrl} />}
                   {isAdmin && (
                     <form method="post" action="/money/paid">

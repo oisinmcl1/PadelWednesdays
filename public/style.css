@@ -125,7 +125,6 @@ button.big, .button.big { width: 100%; min-height: 56px; font-size: 1.15rem; }
 .score-tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.35rem; margin: 0.75rem 0; }
 .score-tiles .tile span { min-height: 48px; font-size: 1.1rem; padding: 0; }
 .match.current .save { width: 100%; margin-top: 1rem; }
-.match.current .hint { margin: 0.5rem 0 0; }
 .last {
   display: flex; align-items: center; gap: 0.5rem; justify-content: space-between;
   margin-bottom: 1rem; color: var(--muted);

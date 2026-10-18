@@ -38,7 +38,7 @@ statsRoutes.get("/", async (c) => {
           </ul>
 
           <h2>Partnerships</h2>
-          <p class="hint">Win % together (min {stats.MIN_GAMES} matches).</p>
+          <p class="hint">Win % together. Grey: under {stats.MIN_GAMES} matches.</p>
           <div class="table-wrap">
             <table class="heatmap">
               <thead>
@@ -58,7 +58,7 @@ statsRoutes.get("/", async (c) => {
                       const r = pairs.get(stats.pairKey(row.id, col.id));
                       if (!r) return <td class="none">–</td>;
                       const label = `${row.name} & ${col.name}: won ${r.wins} of ${r.played}`;
-                      if (r.played < stats.MIN_GAMES) return <td class="few" title={label}>{r.played}g</td>;
+                      if (r.played < stats.MIN_GAMES) return <td class="few" title={label}>{r.played}</td>;
                       const pct = stats.winPct(r);
                       return (
                         <td class={pct >= 50 ? "pos" : "neg"} style={heat(pct)} title={label}>

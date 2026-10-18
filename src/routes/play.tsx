@@ -191,7 +191,7 @@ play.post("/sessions", async (c) => {
 
   const active = new Set((await db.listPlayers(c.env.DB)).filter((p) => p.active).map((p) => String(p.id)));
   const chosen = [...new Set(ids)].filter((id) => active.has(id));
-  if (chosen.length < 4 || chosen.length > 6) return startPage(c, form, `Pick 4, 5 or 6 players.`);
+  if (chosen.length < 4 || chosen.length > 6) return startPage(c, form, "Pick 4, 5 or 6 players.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) return startPage(c, form, "Pick a date.");
   const cents = parseMoney(form.price);
   if (cents === null) return startPage(c, form, "Invalid price.");
