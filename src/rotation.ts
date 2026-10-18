@@ -6,7 +6,8 @@
 //   6 players: 3 fixed pairs, round robin (each pair sits one match). Pairs are chosen to
 //              avoid partners who already played together this session, then recently.
 //
-// Each cycle reshuffles the order. Nobody sits out two matches in a row across cycles.
+// Each cycle reshuffles the order. Nobody sits out two matches in a row across cycles,
+// and the same match is never played twice in a row.
 
 export type Pair = [number, number];
 export type Match = { a: Pair; b: Pair; sittingOut: number[] };
@@ -33,7 +34,7 @@ export function nextCycle(players: number[], history: History, rng: Rng = Math.r
   const lastSat = history.session.at(-1)?.sittingOut ?? [];
   switch (players.length) {
     case 4:
-      return cycleOf4(shuffle(players, rng));
+      return cycleOf4(shuffle(players, rng), history.session.at(-1));
     case 5:
       return cycleOf5(shuffle(players, rng), lastSat);
     case 6:
@@ -43,13 +44,21 @@ export function nextCycle(players: number[], history: History, rng: Rng = Math.r
   }
 }
 
-function cycleOf4([a, b, c, d]: number[]): Match[] {
-  return [
+function cycleOf4([a, b, c, d]: number[], last: Match | undefined): Match[] {
+  const cycle: Match[] = [
     { a: [a, b], b: [c, d], sittingOut: [] },
     { a: [a, c], b: [b, d], sittingOut: [] },
     { a: [a, d], b: [b, c], sittingOut: [] },
   ];
+  // Don't open the cycle with the match that was just played: move it to the end.
+  if (last && samePairs(cycle[0], last)) cycle.push(cycle.shift()!);
+  return cycle;
 }
+
+const samePairs = (x: Match, y: Match) => {
+  const pairs = (m: Match) => [key(...m.a), key(...m.b)].sort().join(" v ");
+  return pairs(x) === pairs(y);
+};
 
 function cycleOf5(p: number[], lastSat: number[]): Match[] {
   // p[0] sits first; if they sat out the previous match, swap them with p[1].

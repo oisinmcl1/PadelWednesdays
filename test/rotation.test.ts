@@ -101,6 +101,19 @@ describe("6 players", () => {
   });
 });
 
+describe("never the same match twice in a row", () => {
+  const sameMatch = (x: Match, y: Match) =>
+    [pairKey(x.a), pairKey(x.b)].sort().join() === [pairKey(y.a), pairKey(y.b)].sort().join();
+
+  it.each([4, 5, 6])("%i players, across cycles", (n) => {
+    const players = Array.from({ length: n }, (_, i) => i + 1);
+    for (const seed of SEEDS) {
+      const all = runCycles(players, 8, seed).flat();
+      for (let i = 1; i < all.length; i++) expect(sameMatch(all[i], all[i - 1])).toBe(false);
+    }
+  });
+});
+
 describe("other sizes", () => {
   it("rejects fewer than 4 or more than 6", () => {
     expect(() => nextCycle([1, 2, 3], empty)).toThrow();
