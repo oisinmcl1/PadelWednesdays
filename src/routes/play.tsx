@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
-import { formatEuros, parseEuros, splitCost } from "../money";
+import { formatMoney, parseMoney, splitCost } from "../money";
 import * as sessions from "../sessions";
 import type { AppEnv } from "../types";
 import { ErrorText, Layout } from "../views/layout";
@@ -37,7 +37,7 @@ async function startPage(c: Context<AppEnv>, form: StartForm, error?: string) {
               <input type="date" name="date" value={form.date} required />
             </label>
             <label class="grow">
-              Court (€)
+              Court (£)
               <input name="price" value={form.price} inputmode="decimal" required />
             </label>
           </div>
@@ -154,7 +154,7 @@ play.get("/", async (c) => {
   const settings = await db.getSettings(c.env.DB);
   return startPage(c, {
     date: sessions.todayInIreland(),
-    price: formatEuros(settings.courtPriceCents).slice(1),
+    price: formatMoney(settings.courtPriceCents).slice(1),
     players: [],
   });
 });
@@ -168,8 +168,8 @@ play.post("/sessions", async (c) => {
   const chosen = [...new Set(ids)].filter((id) => active.has(id));
   if (chosen.length < 4 || chosen.length > 6) return startPage(c, form, `Pick 4, 5 or 6 players (you picked ${chosen.length}).`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) return startPage(c, form, "Pick a date.");
-  const cents = parseEuros(form.price);
-  if (cents === null) return startPage(c, form, "Court price should look like 40 or 42.50.");
+  const cents = parseMoney(form.price);
+  if (cents === null) return startPage(c, form, "Court price should look like 64 or 64.50.");
 
   await sessions.startSession(c.env.DB, form.date, cents, chosen.map(Number));
   // If someone else started one at the same moment, theirs wins; either way go to it.
@@ -196,11 +196,11 @@ play.get("/sessions/end", async (c) => {
       <form method="post" action="/sessions/end" class="stack">
         <input type="hidden" name="id" value={String(session.id)} />
         <section class="card">
-          <h2>Court {formatEuros(session.court_price_cents)}</h2>
+          <h2>Court {formatMoney(session.court_price_cents)}</h2>
           <ul class="plain">
             {owing.map((id) => (
               <li>
-                {name.get(id)} owes {payerName ?? "the payer"} <b>{formatEuros(shares.get(id)!)}</b>
+                {name.get(id)} owes {payerName ?? "the payer"} <b>{formatMoney(shares.get(id)!)}</b>
               </li>
             ))}
           </ul>

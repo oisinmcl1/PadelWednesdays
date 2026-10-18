@@ -31,7 +31,7 @@ Picks teams, logs results, tracks stats, splits the court cost. Used on phones
 
 ## Money
 - Court price and Revolut.me link in settings; price editable per session if needed.
-- Split equally among attendees (to the cent; any remainder is Oisín's).
+- Split equally among attendees (to the penny; any remainder is Oisín's). Currency is GBP (£).
 - Each attendee except Oisín owes their share to Oisín. Admin marks paid/unpaid.
 - Running balance per player across sessions. "Pay Oisín" button shows amount + opens link.
 

@@ -1,5 +1,5 @@
 import type { Child } from "hono/jsx";
-import { formatEuros } from "../money";
+import { formatMoney } from "../money";
 
 type Props = { title: string; isAdmin: boolean; nav?: boolean; charts?: boolean; children?: Child };
 
@@ -45,6 +45,6 @@ export const ErrorText = ({ error }: { error?: string }) =>
 export const PayButton = ({ cents, url }: { cents: number; url: string }) =>
   url ? (
     <a class="button small" href={url} target="_blank" rel="noopener">
-      Pay {formatEuros(cents)}
+      Pay {formatMoney(cents)}
     </a>
   ) : null;

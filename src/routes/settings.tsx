@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
-import { formatEuros, parseEuros } from "../money";
+import { formatMoney, parseMoney } from "../money";
 import { rebuildRatingsFrom } from "../ratings";
 import type { AppEnv } from "../types";
 import { ErrorText, Layout } from "../views/layout";
@@ -21,8 +21,8 @@ async function page(c: Context<AppEnv>, form: Form, error?: string, saved = fals
       {saved && <p class="ok">Saved.</p>}
       <form method="post" action="/settings" class="stack">
         <label>
-          Court price (€)
-          <input name="price" value={form.price} inputmode="decimal" placeholder="e.g. 40" required />
+          Court price (£)
+          <input name="price" value={form.price} inputmode="decimal" placeholder="e.g. 64" required />
         </label>
         <label>
           Revolut.me link
@@ -52,7 +52,7 @@ async function page(c: Context<AppEnv>, form: Form, error?: string, saved = fals
 settings.get("/", async (c) => {
   const s = await db.getSettings(c.env.DB);
   return page(c, {
-    price: formatEuros(s.courtPriceCents).slice(1),
+    price: formatMoney(s.courtPriceCents).slice(1),
     revolut: s.revolutUrl,
     payer: s.payerPlayerId === null ? "" : String(s.payerPlayerId),
   }, undefined, c.req.query("saved") === "1");
@@ -65,8 +65,8 @@ settings.post("/", async (c) => {
     revolut: String(body.revolut ?? "").trim(),
     payer: String(body.payer ?? ""),
   };
-  const cents = parseEuros(form.price);
-  if (cents === null) return page(c, form, "Court price should look like 40 or 42.50.");
+  const cents = parseMoney(form.price);
+  if (cents === null) return page(c, form, "Court price should look like 64 or 64.50.");
   if (form.revolut && !/^https:\/\/revolut\.me\/[A-Za-z0-9._-]+\/?$/.test(form.revolut)) {
     return page(c, form, "Revolut link should look like https://revolut.me/yourname.");
   }

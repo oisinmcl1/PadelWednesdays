@@ -45,7 +45,7 @@ Set either with `npx wrangler secret put <NAME>`.
 |---|---|
 | `src/rotation.ts` | Who plays whom (4/5/6 players), pure and unit-tested |
 | `src/ratings.ts` | openskill ratings, stored per match, replayed from any edited match |
-| `src/money.ts` | Euro parsing/formatting and the cost split |
+| `src/money.ts` | Money (£) parsing/formatting and the cost split |
 | `src/balls.ts` | Whose turn it is to bring balls |
 | `src/stats.ts` | Records, streaks, partners, nemesis, standings |
 | `src/sessions.ts`, `src/ledger.ts`, `src/db.ts` | Database queries |

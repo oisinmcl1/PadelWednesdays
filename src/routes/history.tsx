@@ -3,7 +3,7 @@ import { raw } from "hono/html";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
 import * as ledger from "../ledger";
-import { formatEuros, parseEuros } from "../money";
+import { formatMoney, parseMoney } from "../money";
 import * as sessions from "../sessions";
 import type { AppEnv } from "../types";
 import { standings } from "../stats";
@@ -87,18 +87,18 @@ history.get("/:id{[0-9]+}", async (c) => {
 
       {session.status === "ended" && (
         <section>
-          <h2>Court {formatEuros(session.court_price_cents)}</h2>
+          <h2>Court {formatMoney(session.court_price_cents)}</h2>
           <ul class="list">
             {shares.map((s) =>
               s.player_id === session.payer_id ? (
                 <li>
                   <span class="name">{name.get(s.player_id)}</span>
-                  <span class="hint">paid the court ({formatEuros(s.share_cents ?? 0)} share)</span>
+                  <span class="hint">paid the court ({formatMoney(s.share_cents ?? 0)} share)</span>
                 </li>
               ) : (
                 <li>
                   <span class="name">{name.get(s.player_id)}</span>
-                  <span>{formatEuros(s.share_cents ?? 0)}</span>
+                  <span>{formatMoney(s.share_cents ?? 0)}</span>
                   {s.paid_at ? <span class="ok">Paid</span> : <PayButton cents={s.share_cents ?? 0} url={settings.revolutUrl} />}
                   {isAdmin && (
                     <form method="post" action="/money/paid">
@@ -116,7 +116,7 @@ history.get("/:id{[0-9]+}", async (c) => {
           <p class="hint">Everyone owes {payer} their share.</p>
           {isAdmin && (
             <form method="post" action={`/history/${session.id}/price`} class="row">
-              <input name="price" value={formatEuros(session.court_price_cents).slice(1)} inputmode="decimal" aria-label="Court price (€)" />
+              <input name="price" value={formatMoney(session.court_price_cents).slice(1)} inputmode="decimal" aria-label="Court price (£)" />
               <button class="secondary">Change price</button>
             </form>
           )}
@@ -129,7 +129,7 @@ history.get("/:id{[0-9]+}", async (c) => {
 
 history.post("/:id{[0-9]+}/price", requireAdmin, async (c) => {
   const id = Number(c.req.param("id"));
-  const cents = parseEuros(String((await c.req.parseBody()).price ?? ""));
+  const cents = parseMoney(String((await c.req.parseBody()).price ?? ""));
   if (cents !== null) await sessions.setSessionPrice(c.env.DB, id, cents);
   return c.redirect(`/history/${id}`, 303);
 });

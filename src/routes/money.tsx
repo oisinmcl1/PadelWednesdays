@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
 import * as ledger from "../ledger";
-import { formatEuros } from "../money";
+import { formatMoney } from "../money";
 import { formatDate } from "../sessions";
 import type { AppEnv } from "../types";
 import { Layout, PayButton } from "../views/layout";
@@ -37,12 +37,12 @@ money.get("/", async (c) => {
               <details>
                 <summary>
                   <span class="name">{name.get(o.id)}</span>
-                  <b>{formatEuros(o.total)}</b>
+                  <b>{formatMoney(o.total)}</b>
                 </summary>
                 <ul class="plain">
                   {o.debts.map((d) => (
                     <li>
-                      <a href={`/history/${d.session_id}`}>{formatDate(d.date)}</a>: {formatEuros(d.share_cents)}
+                      <a href={`/history/${d.session_id}`}>{formatDate(d.date)}</a>: {formatMoney(d.share_cents)}
                       {isAdmin && (
                         <form method="post" action="/money/paid" class="inline">
                           <input type="hidden" name="session" value={String(d.session_id)} />
@@ -57,7 +57,7 @@ money.get("/", async (c) => {
                 {isAdmin && o.debts.length > 1 && (
                   <form method="post" action="/money/settle">
                     <input type="hidden" name="player" value={String(o.id)} />
-                    <button class="secondary small">Mark all {formatEuros(o.total)} paid</button>
+                    <button class="secondary small">Mark all {formatMoney(o.total)} paid</button>
                   </form>
                 )}
               </details>

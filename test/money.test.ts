@@ -1,25 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { formatEuros, parseEuros } from "../src/money";
+import { formatMoney, parseMoney } from "../src/money";
 
-describe("parseEuros", () => {
+describe("parseMoney", () => {
   it.each([
     ["40", 4000],
     ["42.5", 4250],
     ["42.50", 4250],
     ["42,50", 4250],
-    ["€ 7.05", 705],
+    ["£ 7.05", 705],
+    ["£64", 6400],
     ["0", 0],
-  ])("%s -> %i cents", (input, cents) => expect(parseEuros(input)).toBe(cents));
+  ])("%s -> %i pence", (input, cents) => expect(parseMoney(input)).toBe(cents));
 
   it.each(["", "abc", "-5", "1.234", "12.", "1e3"])("rejects %j", (input) =>
-    expect(parseEuros(input)).toBeNull(),
+    expect(parseMoney(input)).toBeNull(),
   );
 });
 
-describe("formatEuros", () => {
+describe("formatMoney", () => {
   it("formats cents", () => {
-    expect(formatEuros(4250)).toBe("€42.50");
-    expect(formatEuros(5)).toBe("€0.05");
-    expect(formatEuros(-1234)).toBe("-€12.34");
+    expect(formatMoney(4250)).toBe("£42.50");
+    expect(formatMoney(5)).toBe("£0.05");
+    expect(formatMoney(-1234)).toBe("-£12.34");
   });
 });
