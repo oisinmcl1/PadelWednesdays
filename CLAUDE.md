@@ -40,7 +40,9 @@ Picks teams, logs results, tracks stats, splits the court cost. Used on phones
   the session. Ball cost is not split.
 
 ## Ratings & stats
-- openskill per individual player; update after every match.
+- openskill per individual player; update after every match. The winning margin counts
+  (openskill `margin` option, MARGIN = 1 in src/ratings.ts): 5–4 moves ratings like a plain
+  win, 5–0 about 2.6x as far.
 - Ratings must be recomputable from match history, so editing an old result is safe.
 - Missed weeks have no effect: no decay, stats only from games played.
 - Stats: games, wins, win %, streak, rating trend, best partner, nemesis, head-to-head,

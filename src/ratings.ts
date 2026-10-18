@@ -18,6 +18,15 @@ export type PlayedMatch = {
 
 export type RatingRow = { match_id: number; player_id: number; mu: number; sigma: number };
 
+/**
+ * The winning margin counts, using openskill's built-in margin option: each rating
+ * change is scaled by 1 + ln(1 + games difference - MARGIN). With MARGIN = 1, a 5-4
+ * win moves ratings like a plain win (x1.0), and bigger wins count more with
+ * diminishing returns: 5-3 x1.7, 5-2 x2.1, 5-1 x2.4, 5-0 x2.6. Only mu (the level)
+ * is scaled; sigma (how sure we are) updates as normal.
+ */
+const MARGIN = 1;
+
 /** Applies matches in order on top of `start`. Returns every player's rating after each match. */
 export function applyMatches(start: Map<number, Rating>, matches: PlayedMatch[]): RatingRow[] {
   const current = new Map(start);
@@ -26,7 +35,7 @@ export function applyMatches(start: Map<number, Rating>, matches: PlayedMatch[])
   for (const m of matches) {
     const [[a1, a2], [b1, b2]] = rate(
       [[get(m.a1), get(m.a2)], [get(m.b1), get(m.b2)]],
-      { score: [m.games_a, m.games_b] }, // more games = better; equal = draw
+      { score: [m.games_a, m.games_b], margin: MARGIN },
     );
     for (const [id, r] of [[m.a1, a1], [m.a2, a2], [m.b1, b1], [m.b2, b2]] as const) {
       current.set(id, r);
