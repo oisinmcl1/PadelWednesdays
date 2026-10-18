@@ -37,7 +37,7 @@ describe("group token", () => {
     expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("/");
     const cookie = await memberCookie();
-    expect((await app.request("/", { headers: { cookie } }, env)).status).toBe(200);
+    expect((await app.request("/admin", { headers: { cookie } }, env)).status).toBe(200);
   });
 
   it("only sets Secure outside local dev", async () => {
@@ -51,7 +51,7 @@ describe("group token", () => {
   it("invalidates cookies when the token changes", async () => {
     const cookie = await memberCookie();
     const rotated = { ...env, GROUP_TOKEN: "new-token" } as Env;
-    expect((await app.request("/", { headers: { cookie } }, rotated)).status).toBe(403);
+    expect((await app.request("/admin", { headers: { cookie } }, rotated)).status).toBe(403);
   });
 
   it("rejects a forged cookie", async () => {

@@ -90,3 +90,33 @@ form { margin: 0; }
 .hint { color: var(--muted); font-size: 0.9rem; }
 .error { color: var(--danger); font-weight: 600; }
 .ok { color: var(--ok); font-weight: 600; }
+
+/* ---------- start session ---------- */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.5rem; }
+.tile { position: relative; }
+.tile input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.tile span {
+  display: flex; align-items: center; justify-content: center; min-height: 64px;
+  border: 2px solid var(--border); border-radius: var(--radius); background: var(--card);
+  font-weight: 600; text-align: center; padding: 0.5rem;
+}
+.tile input:checked + span { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
+.tile input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; }
+.row .grow { flex: 1; display: grid; gap: 0.35rem; font-weight: 600; }
+button.big, .button.big { width: 100%; min-height: 56px; font-size: 1.15rem; }
+.stack > .button { width: 100%; }
+
+/* ---------- match screen ---------- */
+.match {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem; margin-bottom: 1rem;
+}
+.match.current { text-align: center; padding: 1.5rem 1rem; }
+.match.current .team { display: grid; gap: 0.15rem; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+.match.current .vs { color: var(--muted); margin: 0.75rem 0; text-transform: uppercase; letter-spacing: 0.1em; }
+.match.next h2 { margin: 0 0 0.25rem; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.match.next p { margin: 0; font-weight: 600; }
+.match.next .vs { color: var(--muted); font-weight: 400; }
+.match .sitting { color: var(--muted); margin: 0.75rem 0 0; font-size: 0.95rem; }
+.match.next .sitting { margin-top: 0.25rem; font-weight: 400; }
+.end-link { text-align: center; margin-top: 2rem; }
