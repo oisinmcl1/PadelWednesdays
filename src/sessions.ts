@@ -174,10 +174,17 @@ export async function ballTurnFor(db: D1Database, sessionId: number): Promise<nu
   const [players, present, last] = await Promise.all([
     db.prepare("SELECT id, ball_order FROM players WHERE active = 1").all<{ id: number; ball_order: number | null }>(),
     sessionPlayerIds(db, sessionId),
+    // The last recorded buyer. Before any session has one, fall back to the
+    // last_ball_buyer_id setting, which seeds the rotation (e.g. "Shane just bought").
     db
       .prepare(
-        `SELECT p.ball_order FROM sessions s JOIN players p ON p.id = s.ball_buyer_id
-         WHERE s.status = 'ended' ORDER BY s.date DESC, s.id DESC LIMIT 1`,
+        `SELECT ball_order FROM (
+           SELECT p.ball_order, 1 AS pri, s.date, s.id FROM sessions s JOIN players p ON p.id = s.ball_buyer_id
+           WHERE s.status = 'ended'
+           UNION ALL
+           SELECT p.ball_order, 2, '', 0 FROM settings st JOIN players p ON p.id = CAST(st.value AS INTEGER)
+           WHERE st.key = 'last_ball_buyer_id'
+         ) ORDER BY pri, date DESC, id DESC LIMIT 1`,
       )
       .first<{ ball_order: number | null }>(),
   ]);
