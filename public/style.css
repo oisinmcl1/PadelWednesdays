@@ -160,3 +160,63 @@ button.small { min-height: 40px; padding: 0.4rem 0.9rem; }
 .debt .plain { margin: 0.5rem 0; color: var(--muted); }
 .debt .plain li { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 form.inline { display: inline; }
+
+/* ---------- stats ---------- */
+:root {
+  --viz-surface: #fcfcfb;
+  --viz-series-1: #2a78d6;
+  --viz-muted: #898781;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --div-pos: #2a78d6;
+  --div-neg: #e34948;
+  --div-mid: #f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --viz-surface: #1a1a19;
+    --viz-series-1: #3987e5;
+    --viz-grid: #2c2c2a;
+    --viz-axis: #383835;
+    --div-pos: #3987e5;
+    --div-neg: #e66767;
+    --div-mid: #383835;
+  }
+}
+
+.tabs { display: flex; gap: 0.35rem; overflow-x: auto; margin: 0 0 1rem; padding-bottom: 0.25rem; }
+.tabs a {
+  white-space: nowrap; padding: 0.45rem 0.85rem; border-radius: 999px; text-decoration: none;
+  border: 1px solid var(--border); color: var(--text);
+}
+.tabs a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+
+.chips { list-style: none; padding: 0; margin: 0 0 1rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chips a {
+  display: inline-block; padding: 0.5rem 0.9rem; border-radius: 999px; text-decoration: none;
+  background: var(--card); border: 1px solid var(--border); color: var(--text); font-weight: 600;
+}
+
+.tiles-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+.tiles-stats div {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.75rem 0.5rem; text-align: center; display: grid;
+}
+.tiles-stats b { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.tiles-stats span { font-size: 0.8rem; color: var(--muted); }
+.facts p { margin: 0.4rem 0; }
+
+.chart-card { background: var(--viz-surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; margin: 1rem 0; }
+.chart-card h2 { margin-top: 0; font-size: 1rem; }
+.chart-box { position: relative; height: 220px; }
+.chart-card details { margin-top: 0.75rem; color: var(--muted); }
+
+.heatmap { border-collapse: separate; border-spacing: 2px; font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+.heatmap th { font-weight: 600; padding: 0.3rem 0.4rem; white-space: nowrap; }
+.heatmap thead th { font-size: 0.8rem; color: var(--muted); }
+.heatmap th[scope="row"] { text-align: left; }
+.heatmap td { min-width: 3.2rem; height: 2.6rem; text-align: center; border-radius: 6px; background: var(--div-mid); }
+.heatmap td.pos { background: color-mix(in oklab, var(--div-pos) calc(var(--t) * 100%), var(--div-mid)); }
+.heatmap td.neg { background: color-mix(in oklab, var(--div-neg) calc(var(--t) * 100%), var(--div-mid)); }
+.heatmap td.few, .heatmap td.none { color: var(--muted); }
+.heatmap td.self { background: transparent; }

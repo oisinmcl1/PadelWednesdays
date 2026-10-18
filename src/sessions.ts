@@ -1,7 +1,8 @@
 // Session and match queries, plus scheduling matches from the rotation engine.
 import { ballTurn } from "./balls";
 import { splitCost } from "./money";
-import { rebuildRatingsFrom, type PlayedMatch } from "./ratings";
+import { rebuildRatingsFrom } from "./ratings";
+import type { DatedMatch } from "./stats";
 import { nextCycle, type Match } from "./rotation";
 
 export type Session = {
@@ -54,11 +55,16 @@ export async function listEndedSessions(db: D1Database): Promise<(Session & { ma
   return results;
 }
 
-/** Every played match, all sessions, in no particular order. */
-export async function playedMatches(db: D1Database): Promise<PlayedMatch[]> {
+/** Every played match, all sessions, in play order (session date, session, match number). */
+export async function playedMatches(db: D1Database): Promise<DatedMatch[]> {
   const { results } = await db
-    .prepare("SELECT id, a1, a2, b1, b2, games_a, games_b FROM matches WHERE games_a IS NOT NULL")
-    .all<PlayedMatch>();
+    .prepare(
+      `SELECT m.id, m.a1, m.a2, m.b1, m.b2, m.games_a, m.games_b, m.session_id, s.date
+       FROM matches m JOIN sessions s ON s.id = m.session_id
+       WHERE m.games_a IS NOT NULL
+       ORDER BY s.date, s.id, m.seq`,
+    )
+    .all<DatedMatch>();
   return results;
 }
 

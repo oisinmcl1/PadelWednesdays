@@ -8,6 +8,7 @@ import money from "./routes/money";
 import play from "./routes/play";
 import players from "./routes/players";
 import settings from "./routes/settings";
+import stats from "./routes/stats";
 import type { AppEnv } from "./types";
 
 const app = new Hono<AppEnv>();
@@ -25,6 +26,7 @@ app.use(requireMember);
 
 app.route("/", play);
 app.route("/leaderboard", leaderboard);
+app.route("/stats", stats);
 app.route("/money", money);
 app.route("/history", history);
 app.route("/players", players);

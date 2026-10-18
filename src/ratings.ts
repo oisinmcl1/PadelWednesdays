@@ -106,3 +106,28 @@ export async function rebuildRatingsFrom(db: D1Database, matchId: number | null)
   ];
   if (writes.length > 0) await db.batch(writes); // D1 rejects an empty batch
 }
+
+export type TimelinePoint = { session_id: number; date: string; player_id: number; rating: number };
+
+/** Each player's displayed rating at the end of every session they played in, oldest first. */
+export async function ratingTimeline(db: D1Database): Promise<TimelinePoint[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT rh.player_id, rh.mu, rh.sigma, s.id AS session_id, s.date
+       FROM rating_history rh
+       JOIN matches m ON m.id = rh.match_id JOIN sessions s ON s.id = m.session_id
+       ORDER BY ${MATCH_ORDER}`,
+    )
+    .all<RatingRow & { session_id: number; date: string }>();
+  // Later rows overwrite earlier ones, leaving the last match of each session.
+  const last = new Map<string, TimelinePoint>();
+  for (const r of results) {
+    last.set(`${r.session_id}:${r.player_id}`, {
+      session_id: r.session_id,
+      date: r.date,
+      player_id: r.player_id,
+      rating: displayRating(r),
+    });
+  }
+  return [...last.values()];
+}

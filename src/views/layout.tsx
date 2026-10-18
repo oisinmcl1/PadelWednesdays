@@ -1,9 +1,9 @@
 import type { Child } from "hono/jsx";
 import { formatEuros } from "../money";
 
-type Props = { title: string; isAdmin: boolean; nav?: boolean; children?: Child };
+type Props = { title: string; isAdmin: boolean; nav?: boolean; charts?: boolean; children?: Child };
 
-export const Layout = ({ title, isAdmin, nav = true, children }: Props) => (
+export const Layout = ({ title, isAdmin, nav = true, charts = false, children }: Props) => (
   <html lang="en">
     <head>
       <meta charset="utf-8" />
@@ -13,16 +13,17 @@ export const Layout = ({ title, isAdmin, nav = true, children }: Props) => (
       <link rel="stylesheet" href="/style.css" />
       <script src="/htmx.min.js" defer></script>
       <script src="/app.js" defer></script>
+      {charts && <script src="/chart.umd.js" defer></script>}
+      {charts && <script src="/charts.js" defer></script>}
     </head>
     <body>
       {nav && (
         <nav class="topnav">
           <a href="/">Play</a>
           <a href="/leaderboard">Table</a>
+          <a href="/stats">Stats</a>
           <a href="/money">Money</a>
           <a href="/history">History</a>
-          <a href="/players">Players</a>
-          {isAdmin ? <a href="/settings">Settings</a> : null}
           <a href="/admin" class="admin-link">{isAdmin ? "Admin ✓" : "Admin"}</a>
         </nav>
       )}
