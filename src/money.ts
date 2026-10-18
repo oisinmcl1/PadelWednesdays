@@ -28,3 +28,14 @@ export function splitCost(totalCents: number, attendees: number[], payerId: numb
   if (payerId !== null && shares.has(payerId)) shares.set(payerId, base + remainder);
   return shares;
 }
+
+/**
+ * Tidies a Revolut.me link: "revolut.me/name", "www.revolut.me/name" and
+ * "http://revolut.me/name" all become "https://revolut.me/name". Returns null if
+ * it isn't a revolut.me link.
+ */
+export function normaliseRevolutUrl(input: string): string | null {
+  const rest = input.trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "");
+  const m = /^revolut\.me\/([A-Za-z0-9._-]+)\/?$/i.exec(rest);
+  return m ? `https://revolut.me/${m[1]}` : null;
+}

@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
-import { formatMoney, parseMoney } from "../money";
+import { formatMoney, normaliseRevolutUrl, parseMoney } from "../money";
 import { rebuildRatingsFrom } from "../ratings";
 import type { AppEnv } from "../types";
 import { ErrorText, Layout } from "../views/layout";
@@ -26,7 +26,7 @@ async function page(c: Context<AppEnv>, form: Form, error?: string, saved = fals
         </label>
         <label>
           Revolut.me link
-          <input name="revolut" value={form.revolut} type="url" placeholder="https://revolut.me/yourname" />
+          <input name="revolut" value={form.revolut} inputmode="url" autocapitalize="off" placeholder="revolut.me/yourname" />
         </label>
         <label>
           Who books and pays for the court
@@ -66,12 +66,11 @@ settings.post("/", async (c) => {
   };
   const cents = parseMoney(form.price);
   if (cents === null) return page(c, form, "Invalid price.");
-  if (form.revolut && !/^https:\/\/revolut\.me\/[A-Za-z0-9._-]+\/?$/.test(form.revolut)) {
-    return page(c, form, "Should be a revolut.me link.");
-  }
+  const revolutUrl = form.revolut ? normaliseRevolutUrl(form.revolut) : "";
+  if (revolutUrl === null) return page(c, form, "Should be a revolut.me link.");
   const payerId = form.payer ? Number(form.payer) : null;
   if (payerId !== null && !(await db.getPlayer(c.env.DB, payerId))) return page(c, form, "Unknown player.");
-  await db.saveSettings(c.env.DB, { courtPriceCents: cents, revolutUrl: form.revolut, payerPlayerId: payerId });
+  await db.saveSettings(c.env.DB, { courtPriceCents: cents, revolutUrl, payerPlayerId: payerId });
   return c.redirect("/settings?saved=1", 303);
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, parseMoney } from "../src/money";
+import { formatMoney, normaliseRevolutUrl, parseMoney } from "../src/money";
 
 describe("parseMoney", () => {
   it.each([
@@ -23,4 +23,21 @@ describe("formatMoney", () => {
     expect(formatMoney(5)).toBe("£0.05");
     expect(formatMoney(-1234)).toBe("-£12.34");
   });
+});
+
+describe("normaliseRevolutUrl", () => {
+  it.each([
+    "revolut.me/oisinmcl",
+    "https://revolut.me/oisinmcl",
+    "http://revolut.me/oisinmcl",
+    "www.revolut.me/oisinmcl",
+    "  https://www.Revolut.me/oisinmcl/  ",
+  ])("%j -> https://revolut.me/oisinmcl", (input) =>
+    expect(normaliseRevolutUrl(input)).toBe("https://revolut.me/oisinmcl"),
+  );
+
+  it.each(["oisinmcl", "revolut.com/oisinmcl", "https://evil.com/revolut.me/x", "revolut.me/", "revolut.me/a b"])(
+    "rejects %j",
+    (input) => expect(normaliseRevolutUrl(input)).toBeNull(),
+  );
 });
