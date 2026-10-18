@@ -26,7 +26,8 @@ Picks teams, logs results, tracks stats, splits the court cost. Used on phones
       Prefer partners who haven't played together this session, then recently.
     - When a cycle ends, start another until the session is ended.
 3. Match screen: current match, next match, who's sitting out. Big tap targets.
-4. Log result in two taps (games per team). Undo/edit allowed.
+4. Log result: tap each team's games, then confirm with Save (which spells out the result).
+   Undo/edit allowed.
 5. End session: summary, cost split, ball buyer, recap image.
 
 ## Money

@@ -110,8 +110,10 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           method="post"
           action={`/matches/${current.id}/result`}
           class="match current"
-          data-autosubmit
+          data-score-form
           data-first-to={String(sessions.WIN_GAMES)}
+          data-team-a={names(current.a1, current.a2).join(" & ")}
+          data-team-b={names(current.b1, current.b2).join(" & ")}
         >
           <div class="team">{names(current.a1, current.a2).map((n) => <span>{n}</span>)}</div>
           {currentOdds && <p class="odds">{currentOdds[0]}% to win</p>}
@@ -121,7 +123,7 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           {currentOdds && <p class="odds">{currentOdds[1]}% to win</p>}
           <ScoreTiles team="b" />
           {current.sit1 !== null && <p class="sitting">Sitting out: {names(current.sit1, current.sit2).join(" & ")}</p>}
-          <button class="save">Save result</button>
+          <button class="save" data-save>Save result</button>
           <p class="hint" data-score-hint>
             First to {sessions.WIN_GAMES}. On {sessions.WIN_GAMES - 1} you're on match point; lose a game there and you
             drop back.

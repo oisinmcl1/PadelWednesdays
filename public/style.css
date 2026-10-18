@@ -224,3 +224,4 @@ form.inline { display: inline; }
 /* ---------- odds ---------- */
 .odds { color: var(--muted); font-size: 0.9rem; font-weight: 400; font-variant-numeric: tabular-nums; }
 .match.current .odds { margin: 0.25rem 0 0; }
+.match.current .save:disabled { opacity: 1; background: var(--border); color: var(--muted); }
