@@ -11,11 +11,14 @@ export const Layout = ({ title, isAdmin, nav = true, children }: Props) => (
       <title>{title}</title>
       <link rel="stylesheet" href="/style.css" />
       <script src="/htmx.min.js" defer></script>
+      <script src="/app.js" defer></script>
     </head>
     <body>
       {nav && (
         <nav class="topnav">
           <a href="/">Play</a>
+          <a href="/leaderboard">Table</a>
+          <a href="/history">History</a>
           <a href="/players">Players</a>
           {isAdmin ? <a href="/settings">Settings</a> : null}
           <a href="/admin" class="admin-link">{isAdmin ? "Admin ✓" : "Admin"}</a>

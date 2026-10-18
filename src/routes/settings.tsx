@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
 import { formatEuros, parseEuros } from "../money";
+import { rebuildRatingsFrom } from "../ratings";
 import type { AppEnv } from "../types";
 import { ErrorText, Layout } from "../views/layout";
 
@@ -38,6 +39,11 @@ async function page(c: Context<AppEnv>, form: Form, error?: string, saved = fals
         </label>
         <button>Save</button>
       </form>
+      <h2>Ratings</h2>
+      <p class="hint">Ratings update automatically. This rebuilds them from every result, just in case.</p>
+      <form method="post" action="/settings/recompute-ratings">
+        <button class="secondary">Recompute all ratings</button>
+      </form>
     </Layout>,
     error ? 400 : 200,
   );
@@ -67,6 +73,11 @@ settings.post("/", async (c) => {
   const payerId = form.payer ? Number(form.payer) : null;
   if (payerId !== null && !(await db.getPlayer(c.env.DB, payerId))) return page(c, form, "Unknown player.");
   await db.saveSettings(c.env.DB, { courtPriceCents: cents, revolutUrl: form.revolut, payerPlayerId: payerId });
+  return c.redirect("/settings?saved=1", 303);
+});
+
+settings.post("/recompute-ratings", async (c) => {
+  await rebuildRatingsFrom(c.env.DB, null);
   return c.redirect("/settings?saved=1", 303);
 });
 

@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { requireAdmin } from "../auth";
 import * as db from "../db";
 import { formatEuros, parseEuros } from "../money";
 import * as sessions from "../sessions";
@@ -48,6 +49,8 @@ async function startPage(c: Context<AppEnv>, form: StartForm, error?: string) {
   );
 }
 
+const MAX_GAMES_TILE = 10;
+
 async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
   // Normally a no-op; tops up the schedule if results were edited behind our back.
   await sessions.ensureUpcoming(c.env.DB, session.id);
@@ -55,41 +58,93 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
     db.listPlayers(c.env.DB),
     sessions.listMatches(c.env.DB, session.id),
   ]);
+  const isAdmin = c.get("isAdmin");
   const name = new Map(players.map((p) => [p.id, p.name]));
   const names = (...ids: (number | null)[]) =>
     ids.filter((id): id is number => id !== null).map((id) => name.get(id) ?? "?");
-  const upcoming = matches.filter((m) => m.games_a === null);
-  const [current, next] = upcoming;
+  const played = matches.filter((m) => m.games_a !== null);
+  const [current, next] = matches.filter((m) => m.games_a === null);
+  const last = played.at(-1);
+
+  const ScoreTiles = ({ team }: { team: "a" | "b" }) => (
+    <div class="score-tiles" role="radiogroup" aria-label={`Games for team ${team.toUpperCase()}`}>
+      {Array.from({ length: MAX_GAMES_TILE + 1 }, (_, n) => (
+        <label class="tile">
+          <input type="radio" name={team} value={String(n)} required />
+          <span>{n}</span>
+        </label>
+      ))}
+    </div>
+  );
 
   return c.html(
-    <Layout title="Padel Wednesdays" isAdmin={c.get("isAdmin")}>
-      <p class="hint">
-        {formatDate(session.date)} · Match {current.seq}
-      </p>
-      <section class="match current" aria-label="Current match">
-        <div class="team">{names(current.a1, current.a2).map((n) => <span>{n}</span>)}</div>
-        <div class="vs">vs</div>
-        <div class="team">{names(current.b1, current.b2).map((n) => <span>{n}</span>)}</div>
-        {current.sit1 !== null && <p class="sitting">Sitting out: {names(current.sit1, current.sit2).join(" & ")}</p>}
-      </section>
-      {next && (
-        <section class="match next" aria-label="Next match">
-          <h2>Next</h2>
-          <p>
-            {names(next.a1, next.a2).join(" & ")} <span class="vs">vs</span> {names(next.b1, next.b2).join(" & ")}
-          </p>
-          {next.sit1 !== null && <p class="sitting">Sitting out: {names(next.sit1, next.sit2).join(" & ")}</p>}
-        </section>
-      )}
-      <p class="end-link">
-        <a href="/sessions/end">End session</a>
-      </p>
+    <Layout title="Padel Wednesdays" isAdmin={isAdmin}>
+      {/* Refreshes every 15s so all phones stay in step, unless you're mid-way through entering a score. */}
+      <div
+        id="play"
+        hx-get="/"
+        hx-trigger="every 15s [!document.querySelector('#play input:checked')]"
+        hx-select="#play"
+        hx-swap="outerHTML"
+      >
+        <p class="hint">
+          {formatDate(session.date)} · Match {current.seq}
+        </p>
+        <form method="post" action={`/matches/${current.id}/result`} class="match current" data-autosubmit>
+          <div class="team">{names(current.a1, current.a2).map((n) => <span>{n}</span>)}</div>
+          <ScoreTiles team="a" />
+          <div class="vs">vs</div>
+          <div class="team">{names(current.b1, current.b2).map((n) => <span>{n}</span>)}</div>
+          <ScoreTiles team="b" />
+          {current.sit1 !== null && <p class="sitting">Sitting out: {names(current.sit1, current.sit2).join(" & ")}</p>}
+          <button class="save">Save result</button>
+          <p class="hint">Over {MAX_GAMES_TILE} games? An admin can edit the score after.</p>
+        </form>
+
+        {last && (
+          <form method="post" action={`/matches/${last.id}/undo`} class="last">
+            <span>
+              Last: {names(last.a1, last.a2).join(" & ")} <b>{last.games_a}–{last.games_b}</b> {names(last.b1, last.b2).join(" & ")}
+            </span>
+            <button class="secondary small">Undo</button>
+          </form>
+        )}
+
+        {next && (
+          <section class="match next" aria-label="Next match">
+            <h2>Next</h2>
+            <p>
+              {names(next.a1, next.a2).join(" & ")} <span class="vs">vs</span> {names(next.b1, next.b2).join(" & ")}
+            </p>
+            {next.sit1 !== null && <p class="sitting">Sitting out: {names(next.sit1, next.sit2).join(" & ")}</p>}
+          </section>
+        )}
+
+        {played.length > 0 && (
+          <section>
+            <h2>Tonight</h2>
+            <ol class="results">
+              {played.map((m) => (
+                <li>
+                  <span>{names(m.a1, m.a2).join(" & ")}</span>
+                  <b>{m.games_a}–{m.games_b}</b>
+                  <span>{names(m.b1, m.b2).join(" & ")}</span>
+                  {isAdmin && <a href={`/matches/${m.id}/edit`}>Edit</a>}
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        <p class="end-link">
+          <a href="/sessions/end">End session</a>
+        </p>
+      </div>
     </Layout>,
   );
 }
 
-const formatDate = (iso: string) =>
-  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-IE", { weekday: "short", day: "numeric", month: "short" });
+const formatDate = sessions.formatDate;
 
 play.get("/", async (c) => {
   const session = await sessions.getActiveSession(c.env.DB);
@@ -143,5 +198,66 @@ play.post("/sessions/end", async (c) => {
   }
   return c.redirect("/", 303);
 });
+
+play.post("/matches/:id{[0-9]+}/result", async (c) => {
+  const body = await c.req.parseBody();
+  const games = sessions.parseGames(body.a, body.b);
+  if (games) await sessions.logResult(c.env.DB, Number(c.req.param("id")), games);
+  return c.redirect("/", 303);
+});
+
+play.post("/matches/:id{[0-9]+}/undo", async (c) => {
+  const session = await sessions.getActiveSession(c.env.DB);
+  if (session) await sessions.undoLastResult(c.env.DB, session.id, Number(c.req.param("id")));
+  return c.redirect("/", 303);
+});
+
+play.get("/matches/:id{[0-9]+}/edit", requireAdmin, async (c) => {
+  const match = await sessions.getMatch(c.env.DB, Number(c.req.param("id")));
+  if (!match || match.games_a === null) return c.notFound();
+  return editPage(c, match);
+});
+
+play.post("/matches/:id{[0-9]+}/edit", requireAdmin, async (c) => {
+  const match = await sessions.getMatch(c.env.DB, Number(c.req.param("id")));
+  if (!match || match.games_a === null) return c.notFound();
+  const body = await c.req.parseBody();
+  const games = sessions.parseGames(body.a, body.b);
+  if (!games) return editPage(c, match, "Enter games for both teams (0–99, not both 0).");
+  await sessions.editResult(c.env.DB, match.id, games);
+  return c.redirect(await backFromEdit(c.env.DB, match.session_id), 303);
+});
+
+/** Back to the match screen for tonight's session, or to that session's history page. */
+async function backFromEdit(d: D1Database, sessionId: number) {
+  const active = await sessions.getActiveSession(d);
+  return active?.id === sessionId ? "/" : `/history/${sessionId}`;
+}
+
+async function editPage(c: Context<AppEnv>, m: sessions.MatchRow & { session_id: number }, error?: string) {
+  const players = await db.listPlayers(c.env.DB);
+  const name = new Map(players.map((p) => [p.id, p.name]));
+  const team = (x: number, y: number) => `${name.get(x)} & ${name.get(y)}`;
+  return c.html(
+    <Layout title="Edit result" isAdmin={true}>
+      <h1>Edit result</h1>
+      <ErrorText error={error} />
+      <form method="post" class="stack">
+        <label>
+          {team(m.a1, m.a2)}
+          <input name="a" value={String(m.games_a)} inputmode="numeric" pattern="[0-9]{1,2}" required />
+        </label>
+        <label>
+          {team(m.b1, m.b2)}
+          <input name="b" value={String(m.games_b)} inputmode="numeric" pattern="[0-9]{1,2}" required />
+        </label>
+        <button class="big">Save</button>
+        <a href={await backFromEdit(c.env.DB, m.session_id)} class="button secondary">Cancel</a>
+      </form>
+      <p class="hint">Ratings are recalculated from this match onward.</p>
+    </Layout>,
+    error ? 400 : 200,
+  );
+}
 
 export default play;
