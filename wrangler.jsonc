@@ -8,7 +8,7 @@
     {
       "binding": "DB",
       "database_name": "padel-wednesdays",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "236354dc-3352-4cf3-87b1-1e59b17d1d1d",
       "migrations_dir": "migrations"
     }
   ]
