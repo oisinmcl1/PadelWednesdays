@@ -220,3 +220,7 @@ form.inline { display: inline; }
 .heatmap td.neg { background: color-mix(in oklab, var(--div-neg) calc(var(--t) * 100%), var(--div-mid)); }
 .heatmap td.few, .heatmap td.none { color: var(--muted); }
 .heatmap td.self { background: transparent; }
+
+/* ---------- odds ---------- */
+.odds { color: var(--muted); font-size: 0.9rem; font-weight: 400; font-variant-numeric: tabular-nums; }
+.match.current .odds { margin: 0.25rem 0 0; }

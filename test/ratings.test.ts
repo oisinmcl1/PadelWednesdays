@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { rate, rating } from "openskill";
-import { applyMatches, displayRating, latestRatings, type PlayedMatch } from "../src/ratings";
+import { applyMatches, displayRating, latestRatings, winChance, type PlayedMatch } from "../src/ratings";
 
 const m = (id: number, a: [number, number], b: [number, number], ga: number, gb: number): PlayedMatch => ({
   id, a1: a[0], a2: a[1], b1: b[0], b2: b[1], games_a: ga, games_b: gb,
@@ -64,5 +64,23 @@ describe("applyMatches", () => {
     const after = applyMatches(new Map(), edited);
     expect(after.filter((r) => r.match_id < 3)).toEqual(original.filter((r) => r.match_id < 3));
     expect(after.filter((r) => r.match_id >= 3)).not.toEqual(original.filter((r) => r.match_id >= 3));
+  });
+});
+
+describe("winChance", () => {
+  it("is 50% between brand-new players", () => {
+    expect(winChance(new Map(), [1, 2], [3, 4])).toBeCloseTo(0.5, 9);
+  });
+
+  it("favours the team that has been winning, and both sides add up to 1", () => {
+    const ratings = latestRatings(applyMatches(new Map(), [m(1, [1, 2], [3, 4], 5, 0), m(2, [1, 2], [3, 4], 5, 1)]));
+    const p = winChance(ratings, [1, 2], [3, 4]);
+    expect(p).toBeGreaterThan(0.6);
+    expect(p + winChance(ratings, [3, 4], [1, 2])).toBeCloseTo(1, 9);
+  });
+
+  it("splitting the strong pair evens it out", () => {
+    const ratings = latestRatings(applyMatches(new Map(), [m(1, [1, 2], [3, 4], 5, 0), m(2, [1, 2], [3, 4], 5, 1)]));
+    expect(winChance(ratings, [1, 3], [2, 4])).toBeCloseTo(0.5, 2);
   });
 });

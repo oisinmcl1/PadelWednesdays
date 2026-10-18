@@ -4,7 +4,7 @@
 // logged, edited or undone, we replay only from that match onward, starting from
 // the stored ratings just before it. Replaying everything from scratch gives the
 // same answer (tested), it would just cost more CPU as history grows.
-import { ordinal, rate, rating, type Rating } from "openskill";
+import { ordinal, predictWin, rate, rating, type Rating } from "openskill";
 
 export type PlayedMatch = {
   id: number;
@@ -48,6 +48,12 @@ export function applyMatches(start: Map<number, Rating>, matches: PlayedMatch[])
 /** Latest rating per player from rows in match order. */
 export function latestRatings(rows: RatingRow[]): Map<number, Rating> {
   return new Map(rows.map((r) => [r.player_id, { mu: r.mu, sigma: r.sigma }]));
+}
+
+/** Chance that team A beats team B, from 0 to 1. Unrated players count as brand new. */
+export function winChance(ratings: Map<number, Rating>, a: [number, number], b: [number, number]): number {
+  const get = (id: number) => ratings.get(id) ?? rating();
+  return predictWin([a.map(get), b.map(get)])[0];
 }
 
 /**
@@ -109,11 +115,25 @@ export async function rebuildRatingsFrom(db: D1Database, matchId: number | null)
   // Only touch matches that have (or had) rating rows, so logging the newest match is ~5 writes.
   const storedIds = new Set(stored.map((r) => r.match_id));
   const stale = redo.filter((m) => storedIds.has(m.id));
-  const writes = [
+  // Refresh the current-ratings snapshot from the rows before this match plus the new ones.
+  const current = latestRatings([...stored.filter((r) => before.has(r.match_id)), ...rows]);
+  const snap = db.prepare("INSERT INTO player_ratings (player_id, mu, sigma) VALUES (?, ?, ?)");
+  await db.batch([
     ...stale.map((m) => del.bind(m.id)),
     ...rows.map((r) => ins.bind(r.match_id, r.player_id, r.mu, r.sigma)),
-  ];
-  if (writes.length > 0) await db.batch(writes); // D1 rejects an empty batch
+    db.prepare("DELETE FROM player_ratings"),
+    ...[...current].map(([id, r]) => snap.bind(id, r.mu, r.sigma)),
+  ]);
+}
+
+/** Current ratings for the given players (cheap: reads the snapshot, not the history). */
+export async function currentRatings(db: D1Database, playerIds: number[]): Promise<Map<number, Rating>> {
+  if (playerIds.length === 0) return new Map();
+  const { results } = await db
+    .prepare(`SELECT player_id, mu, sigma FROM player_ratings WHERE player_id IN (${playerIds.map(() => "?").join(",")})`)
+    .bind(...playerIds)
+    .all<{ player_id: number; mu: number; sigma: number }>();
+  return new Map(results.map((r) => [r.player_id, { mu: r.mu, sigma: r.sigma }]));
 }
 
 export type TimelinePoint = { session_id: number; date: string; player_id: number; rating: number };

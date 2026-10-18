@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
+import { currentRatings, winChance } from "../ratings";
 import { formatMoney, parseMoney, splitCost } from "../money";
 import * as sessions from "../sessions";
 import type { AppEnv } from "../types";
@@ -64,6 +65,16 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
   const [current, next] = matches.filter((m) => m.games_a === null);
   const last = played.at(-1);
   const ballTurn = await sessions.ballTurnFor(c.env.DB, session.id);
+  const ratings = await currentRatings(c.env.DB, await sessions.sessionPlayerIds(c.env.DB, session.id));
+
+  /** Win % for each team, or null while none of the four has played a rated match. */
+  const odds = (m: sessions.MatchRow): [number, number] | null => {
+    if (![m.a1, m.a2, m.b1, m.b2].some((id) => ratings.has(id))) return null;
+    const a = Math.round(100 * winChance(ratings, [m.a1, m.a2], [m.b1, m.b2]));
+    return [a, 100 - a];
+  };
+  const currentOdds = odds(current);
+  const nextOdds = next ? odds(next) : null;
 
   const ScoreTiles = ({ team }: { team: "a" | "b" }) => (
     <div class="score-tiles" role="radiogroup" aria-label={`Games for team ${team.toUpperCase()}`}>
@@ -103,9 +114,11 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           data-first-to={String(sessions.WIN_GAMES)}
         >
           <div class="team">{names(current.a1, current.a2).map((n) => <span>{n}</span>)}</div>
+          {currentOdds && <p class="odds">{currentOdds[0]}% to win</p>}
           <ScoreTiles team="a" />
           <div class="vs">vs</div>
           <div class="team">{names(current.b1, current.b2).map((n) => <span>{n}</span>)}</div>
+          {currentOdds && <p class="odds">{currentOdds[1]}% to win</p>}
           <ScoreTiles team="b" />
           {current.sit1 !== null && <p class="sitting">Sitting out: {names(current.sit1, current.sit2).join(" & ")}</p>}
           <button class="save">Save result</button>
@@ -128,7 +141,10 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           <section class="match next" aria-label="Next match">
             <h2>Next</h2>
             <p>
-              {names(next.a1, next.a2).join(" & ")} <span class="vs">vs</span> {names(next.b1, next.b2).join(" & ")}
+              {names(next.a1, next.a2).join(" & ")}
+              {nextOdds && <span class="odds"> {nextOdds[0]}%</span>} <span class="vs">vs</span>{" "}
+              {names(next.b1, next.b2).join(" & ")}
+              {nextOdds && <span class="odds"> {nextOdds[1]}%</span>}
             </p>
             {next.sit1 !== null && <p class="sitting">Sitting out: {names(next.sit1, next.sit2).join(" & ")}</p>}
           </section>
