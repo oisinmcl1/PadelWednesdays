@@ -1,0 +1,4 @@
+GROUP_TOKEN=change-me-long-random-string
+ADMIN_PIN=123456
+# Only set locally: disables the Secure cookie flag so phones on the LAN work over http
+LOCAL_DEV=1
