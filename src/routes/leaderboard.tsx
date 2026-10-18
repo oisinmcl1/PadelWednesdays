@@ -72,10 +72,6 @@ leaderboard.get("/", async (c) => {
           </table>
         </div>
       )}
-      <p class="hint">
-        Rating is openskill's cautious estimate of your level: everyone starts at 0, and it settles as you play more.
-        {season && " Monthly tables start everyone fresh at the start of the month."}
-      </p>
     </Layout>,
   );
 });

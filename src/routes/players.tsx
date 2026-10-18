@@ -25,7 +25,6 @@ async function page(c: Context<AppEnv>, error?: string) {
           <button>Add</button>
         </form>
       )}
-      <p class="hint">Listed in ball-rotation order.</p>
       <ol class="list">
         {active.map((p, i) => (
           <li>
@@ -73,7 +72,6 @@ async function editPage(c: Context<AppEnv>, p: db.Player, error?: string) {
         <input type="hidden" name="active" value={p.active ? "0" : "1"} />
         <button class={p.active ? "secondary" : ""}>{p.active ? "Mark inactive" : "Mark active"}</button>
       </form>
-      <p class="hint">Inactive players are hidden from attendance but keep their history.</p>
       <p><a href="/players">← Back to players</a></p>
     </Layout>,
     error ? 400 : 200,

@@ -44,7 +44,6 @@ history.get("/:id{[0-9]+}", async (c) => {
   const name = new Map(players.map((p) => [p.id, p.name]));
   const team = (x: number, y: number) => `${name.get(x)} & ${name.get(y)}`;
   const isAdmin = c.get("isAdmin");
-  const payer = session.payer_id !== null ? name.get(session.payer_id) : "the payer";
   const back = `/history/${session.id}`;
   const played = matches.filter((m): m is typeof m & { games_a: number; games_b: number } => m.games_a !== null);
   const recap = {
@@ -93,7 +92,7 @@ history.get("/:id{[0-9]+}", async (c) => {
               s.player_id === session.payer_id ? (
                 <li>
                   <span class="name">{name.get(s.player_id)}</span>
-                  <span class="hint">paid the court ({formatMoney(s.share_cents ?? 0)} share)</span>
+                  <span class="hint">paid the court</span>
                 </li>
               ) : (
                 <li>
@@ -113,7 +112,6 @@ history.get("/:id{[0-9]+}", async (c) => {
               ),
             )}
           </ul>
-          <p class="hint">Everyone owes {payer} their share.</p>
           {isAdmin && (
             <form method="post" action={`/history/${session.id}/price`} class="row">
               <input name="price" value={formatMoney(session.court_price_cents).slice(1)} inputmode="decimal" aria-label="Court price (£)" />

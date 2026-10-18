@@ -19,7 +19,7 @@ async function startPage(c: Context<AppEnv>, form: StartForm, error?: string) {
       <ErrorText error={error} />
       {players.length < 4 ? (
         <p>
-          Add at least 4 players first: <a href="/players">Players</a>.
+          Need at least 4 <a href="/players">players</a>.
         </p>
       ) : (
         <form method="post" action="/sessions" class="stack">
@@ -31,7 +31,6 @@ async function startPage(c: Context<AppEnv>, form: StartForm, error?: string) {
               </label>
             ))}
           </div>
-          <p class="hint">Pick 4, 5 or 6.</p>
           <div class="row">
             <label class="grow">
               Date
@@ -103,7 +102,7 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
         </p>
         {c.req.query("bad") === "1" && (
           <p class="error" role="alert">
-            That score can't happen: the winners have {sessions.WIN_GAMES}, the losers 0–{sessions.WIN_GAMES - 1}.
+            Not a valid score.
           </p>
         )}
         <form
@@ -124,10 +123,6 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           <ScoreTiles team="b" />
           {current.sit1 !== null && <p class="sitting">Sitting out: {names(current.sit1, current.sit2).join(" & ")}</p>}
           <button class="save" data-save>Save result</button>
-          <p class="hint" data-score-hint>
-            First to {sessions.WIN_GAMES}. On {sessions.WIN_GAMES - 1} you're on match point; lose a game there and you
-            drop back.
-          </p>
         </form>
 
         {last && (
@@ -196,10 +191,10 @@ play.post("/sessions", async (c) => {
 
   const active = new Set((await db.listPlayers(c.env.DB)).filter((p) => p.active).map((p) => String(p.id)));
   const chosen = [...new Set(ids)].filter((id) => active.has(id));
-  if (chosen.length < 4 || chosen.length > 6) return startPage(c, form, `Pick 4, 5 or 6 players (you picked ${chosen.length}).`);
+  if (chosen.length < 4 || chosen.length > 6) return startPage(c, form, `Pick 4, 5 or 6 players.`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) return startPage(c, form, "Pick a date.");
   const cents = parseMoney(form.price);
-  if (cents === null) return startPage(c, form, "Court price should look like 64 or 64.50.");
+  if (cents === null) return startPage(c, form, "Invalid price.");
 
   await sessions.startSession(c.env.DB, form.date, cents, chosen.map(Number));
   // If someone else started one at the same moment, theirs wins; either way go to it.
@@ -234,7 +229,7 @@ play.get("/sessions/end", async (c) => {
               </li>
             ))}
           </ul>
-          {!payerName && <p class="error">Nobody is set as the court payer yet. An admin can set it in Settings.</p>}
+          {!payerName && <p class="error">No court payer set in Settings.</p>}
         </section>
         <label>
           Who brought the balls?
@@ -247,7 +242,6 @@ play.get("/sessions/end", async (c) => {
             <option value="" selected={turn === null}>Nobody / not tracked</option>
           </select>
         </label>
-        <p class="hint">Unplayed matches are dropped. If no results were logged, the session is deleted.</p>
         <button class="big">End session</button>
         <a href="/" class="button secondary">Keep playing</a>
       </form>
@@ -293,9 +287,7 @@ play.post("/matches/:id{[0-9]+}/edit", requireAdmin, async (c) => {
   if (!match || match.games_a === null) return c.notFound();
   const body = await c.req.parseBody();
   const games = sessions.parseGames(body.a, body.b);
-  if (!games) {
-    return editPage(c, match, `The winners need ${sessions.WIN_GAMES} games and the losers 0–${sessions.WIN_GAMES - 1}.`);
-  }
+  if (!games) return editPage(c, match, "Not a valid score.");
   await sessions.editResult(c.env.DB, match.id, games);
   return c.redirect(await backFromEdit(c.env.DB, match.session_id), 303);
 });
@@ -326,7 +318,6 @@ async function editPage(c: Context<AppEnv>, m: sessions.MatchRow & { session_id:
         <button class="big">Save</button>
         <a href={await backFromEdit(c.env.DB, m.session_id)} class="button secondary">Cancel</a>
       </form>
-      <p class="hint">Ratings are recalculated from this match onward.</p>
     </Layout>,
     error ? 400 : 200,
   );

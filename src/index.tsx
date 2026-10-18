@@ -19,7 +19,7 @@ app.use(csrf());
 // The group link: /join/<token>. Sets the member cookie, then drops the token from the URL.
 app.get("/join/:token", async (c) => {
   if (await joinGroup(c, c.req.param("token"))) return c.redirect("/", 303);
-  return c.text("That link isn't valid any more. Ask the group for the current one.", 403);
+  return c.text("Link no longer valid.", 403);
 });
 
 app.use(requireMember);

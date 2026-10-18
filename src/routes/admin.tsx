@@ -16,12 +16,10 @@ admin.get("/", (c) => {
       <h1>Admin</h1>
       {isAdmin ? (
         <>
-          <p>You're signed in as admin on this device.</p>
           <ul class="list">
             <li><a class="name" href="/players">Players & ball order</a></li>
             <li><a class="name" href="/settings">Settings</a></li>
           </ul>
-          <p></p>
           <form method="post" action="/admin/logout">
             <button class="secondary">Sign out of admin</button>
           </form>

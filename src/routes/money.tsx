@@ -29,7 +29,7 @@ money.get("/", async (c) => {
     <Layout title="Money" isAdmin={isAdmin}>
       <h1>Money</h1>
       {owing.length === 0 ? (
-        <p>Everyone's paid up. 🎉</p>
+        <p>All paid up.</p>
       ) : (
         <ul class="list">
           {owing.map((o) => (
@@ -37,7 +37,7 @@ money.get("/", async (c) => {
               <details>
                 <summary>
                   <span class="name">{name.get(o.id)}</span>
-                  <b>{formatMoney(o.total)}</b>
+                  {!settings.revolutUrl && <b>{formatMoney(o.total)}</b>}
                 </summary>
                 <ul class="plain">
                   {o.debts.map((d) => (
@@ -66,10 +66,7 @@ money.get("/", async (c) => {
           ))}
         </ul>
       )}
-      <p class="hint">
-        {payer ? `${payer} books and pays for the court.` : "Nobody is set as the court payer yet."} Tap a name to see
-        which weeks. Pay opens Revolut: enter the amount shown.
-      </p>
+      {!payer && <p class="hint">No court payer set in Settings.</p>}
     </Layout>,
   );
 });

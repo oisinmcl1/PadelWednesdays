@@ -67,7 +67,7 @@ export const requireMember = createMiddleware<AppEnv>(async (c, next) => {
     return c.html(
       <Layout title="Padel Wednesdays" isAdmin={false} nav={false}>
         <h1>Padel Wednesdays</h1>
-        <p>This is a private group app. Open it from the link in the group chat.</p>
+        <p>Use the group link.</p>
       </Layout>,
       403,
     );

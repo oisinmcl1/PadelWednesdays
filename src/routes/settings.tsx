@@ -40,7 +40,6 @@ async function page(c: Context<AppEnv>, form: Form, error?: string, saved = fals
         <button>Save</button>
       </form>
       <h2>Ratings</h2>
-      <p class="hint">Ratings update automatically. This rebuilds them from every result, just in case.</p>
       <form method="post" action="/settings/recompute-ratings">
         <button class="secondary">Recompute all ratings</button>
       </form>
@@ -66,9 +65,9 @@ settings.post("/", async (c) => {
     payer: String(body.payer ?? ""),
   };
   const cents = parseMoney(form.price);
-  if (cents === null) return page(c, form, "Court price should look like 64 or 64.50.");
+  if (cents === null) return page(c, form, "Invalid price.");
   if (form.revolut && !/^https:\/\/revolut\.me\/[A-Za-z0-9._-]+\/?$/.test(form.revolut)) {
-    return page(c, form, "Revolut link should look like https://revolut.me/yourname.");
+    return page(c, form, "Should be a https://revolut.me/… link.");
   }
   const payerId = form.payer ? Number(form.payer) : null;
   if (payerId !== null && !(await db.getPlayer(c.env.DB, payerId))) return page(c, form, "Unknown player.");

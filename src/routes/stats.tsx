@@ -38,10 +38,7 @@ statsRoutes.get("/", async (c) => {
           </ul>
 
           <h2>Partnerships</h2>
-          <p class="hint">
-            Win % when the two play together. Blue = wins more than half, red = fewer. Needs {stats.MIN_GAMES}+
-            matches together; fewer shows the count in grey.
-          </p>
+          <p class="hint">Win % together (min {stats.MIN_GAMES} matches).</p>
           <div class="table-wrap">
             <table class="heatmap">
               <thead>
@@ -115,7 +112,7 @@ statsRoutes.get("/:id{[0-9]+}", async (c) => {
             <div><b>{streak ? `${streak.kind}${streak.length}` : "–"}</b><span>Streak</span></div>
           </div>
           <p class="hint">
-            {rec.wins} won · {rec.draws} drawn · {rec.losses} lost
+            {rec.wins} won · {rec.losses} lost
           </p>
 
           <div class="facts">
@@ -126,7 +123,7 @@ statsRoutes.get("/:id{[0-9]+}", async (c) => {
                   {name.get(best.id)} ({best.record.wins} of {best.record.played} won)
                 </b>
               ) : (
-                <span class="hint">needs {stats.MIN_GAMES}+ matches with someone</span>
+                <span class="hint">–</span>
               )}
             </p>
             <p>
@@ -136,7 +133,7 @@ statsRoutes.get("/:id{[0-9]+}", async (c) => {
                   {name.get(nemesis.id)} ({nemesis.record.losses} of {nemesis.record.played} lost)
                 </b>
               ) : (
-                <span class="hint">nobody yet ({stats.MIN_GAMES}+ matches against)</span>
+                <span class="hint">–</span>
               )}
             </p>
           </div>

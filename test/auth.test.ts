@@ -108,10 +108,10 @@ describe("admin PIN", () => {
     const admin = cookiesFrom(await post("/admin/login", { pin: "246810" }, member));
     const cookie = `${member}; ${admin}`;
     const page = await app.request("/admin", { headers: { cookie } }, env);
-    expect(await page.text()).toContain("signed in as admin");
+    expect(await page.text()).toContain("Sign out of admin");
     const changed = { ...env, ADMIN_PIN: "135790" } as Env;
     const after = await app.request("/admin", { headers: { cookie } }, changed);
-    expect(await after.text()).not.toContain("signed in as admin");
+    expect(await after.text()).not.toContain("Sign out of admin");
   });
 
   it("blocks cross-site form posts", async () => {
