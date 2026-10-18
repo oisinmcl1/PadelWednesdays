@@ -1,10 +1,12 @@
 import { Hono } from "hono";
+import { raw } from "hono/html";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
 import * as ledger from "../ledger";
 import { formatEuros, parseEuros } from "../money";
 import * as sessions from "../sessions";
 import type { AppEnv } from "../types";
+import { standings } from "../stats";
 import { Layout, PayButton } from "../views/layout";
 
 const history = new Hono<AppEnv>();
@@ -44,6 +46,14 @@ history.get("/:id{[0-9]+}", async (c) => {
   const isAdmin = c.get("isAdmin");
   const payer = session.payer_id !== null ? name.get(session.payer_id) : "the payer";
   const back = `/history/${session.id}`;
+  const played = matches.filter((m): m is typeof m & { games_a: number; games_b: number } => m.games_a !== null);
+  const recap = {
+    iso: session.date,
+    date: sessions.formatDate(session.date),
+    balls: session.ball_buyer_id !== null ? name.get(session.ball_buyer_id) : null,
+    standings: standings(played).map((s) => ({ name: name.get(s.id), wins: s.wins, losses: s.losses, diff: s.diff })),
+    results: played.map((m) => ({ a: team(m.a1, m.a2), b: team(m.b1, m.b2), ga: m.games_a, gb: m.games_b })),
+  };
 
   return c.html(
     <Layout title={sessions.formatDate(session.date)} isAdmin={isAdmin}>
@@ -53,10 +63,19 @@ history.get("/:id{[0-9]+}", async (c) => {
         {session.ball_buyer_id !== null && <> · Balls: {name.get(session.ball_buyer_id)}</>}
       </p>
 
+      {session.status === "ended" && played.length > 0 && (
+        <>
+          <button class="big" data-recap>Share recap</button>
+          {/* Escape "<" so a player name can't close the script tag. */}
+          <script type="application/json" id="recap-data">
+            {raw(JSON.stringify(recap).replace(/</g, "\\u003c"))}
+          </script>
+          <script src="/recap.js" defer></script>
+        </>
+      )}
+
       <ol class="results">
-        {matches
-          .filter((m) => m.games_a !== null)
-          .map((m) => (
+        {played.map((m) => (
             <li>
               <span>{team(m.a1, m.a2)}</span>
               <b>{m.games_a}–{m.games_b}</b>

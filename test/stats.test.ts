@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestPartner, headToHead, nemesis, pairKey, partnerships, records, seasonOf, streak, winPct } from "../src/stats";
+import { bestPartner, headToHead, nemesis, pairKey, partnerships, records, seasonOf, standings, streak, winPct } from "../src/stats";
 
 let nextId = 1;
 const m = (a: [number, number], b: [number, number], ga: number, gb: number) => ({
@@ -78,5 +78,15 @@ describe("partners and opponents", () => {
 describe("seasons", () => {
   it("are calendar months", () => {
     expect(seasonOf("2026-10-21")).toBe("2026-10");
+  });
+});
+
+describe("standings", () => {
+  it("sorts by wins, then games difference", () => {
+    const s = standings([m([1, 2], [3, 4], 6, 1), m([1, 3], [2, 4], 6, 5), m([1, 4], [2, 3], 2, 6)]);
+    expect(s.map((x) => x.id)).toEqual([2, 1, 3, 4]);
+    expect(s[0]).toMatchObject({ id: 2, wins: 2, losses: 1, diff: 8 });
+    expect(s[1]).toMatchObject({ id: 1, wins: 2, losses: 1, diff: 2 });
+    expect(s.reduce((sum, x) => sum + x.diff, 0)).toBe(0);
   });
 });

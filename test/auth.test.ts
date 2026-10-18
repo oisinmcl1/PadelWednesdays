@@ -60,6 +60,16 @@ describe("group token", () => {
   });
 });
 
+describe("manifest", () => {
+  it("is only served to members, and starts at the join link", async () => {
+    expect((await app.request("/manifest.webmanifest", {}, env)).status).toBe(403);
+    const res = await app.request("/manifest.webmanifest", { headers: { cookie: await memberCookie() } }, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toContain("no-store");
+    expect(((await res.json()) as { start_url: string }).start_url).toBe("/join/test-token");
+  });
+});
+
 describe("admin PIN", () => {
   const post = (path: string, body: Record<string, string>, cookie: string, e = env) =>
     app.request(

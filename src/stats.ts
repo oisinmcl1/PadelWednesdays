@@ -106,3 +106,18 @@ export const seasonOf = (date: string) => date.slice(0, 7);
 
 export const formatSeason = (season: string) =>
   new Date(`${season}-15T12:00:00Z`).toLocaleDateString("en-IE", { month: "long", year: "numeric" });
+
+export type Standing = Record & { id: number; diff: number };
+
+/** One session's table: most wins, then best games difference, then fewest losses. */
+export function standings(matches: PlayedMatch[]): Standing[] {
+  const recs = records(matches);
+  const diff = new Map<number, number>();
+  for (const m of matches) {
+    for (const id of [m.a1, m.a2]) diff.set(id, (diff.get(id) ?? 0) + m.games_a - m.games_b);
+    for (const id of [m.b1, m.b2]) diff.set(id, (diff.get(id) ?? 0) + m.games_b - m.games_a);
+  }
+  return [...recs]
+    .map(([id, r]) => ({ id, ...r, diff: diff.get(id)! }))
+    .sort((x, y) => y.wins - x.wins || y.diff - x.diff || x.losses - y.losses);
+}

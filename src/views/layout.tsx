@@ -11,6 +11,12 @@ export const Layout = ({ title, isAdmin, nav = true, charts = false, children }:
       <meta name="theme-color" content="#0f5132" />
       <title>{title}</title>
       <link rel="stylesheet" href="/style.css" />
+      {/* use-credentials: the manifest sits behind the member cookie. */}
+      {nav && <link rel="manifest" href="/manifest.webmanifest" crossorigin="use-credentials" />}
+      <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+      <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-title" content="Padel" />
       <script src="/htmx.min.js" defer></script>
       <script src="/app.js" defer></script>
       {charts && <script src="/chart.umd.js" defer></script>}

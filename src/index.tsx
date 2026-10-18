@@ -24,6 +24,29 @@ app.get("/join/:token", async (c) => {
 
 app.use(requireMember);
 
+// Served behind the member check because start_url carries the group token: a
+// home-screen app on iPhone has its own cookie jar, so it needs to join on launch.
+app.get("/manifest.webmanifest", (c) => {
+  c.header("Cache-Control", "private, no-store");
+  c.header("Content-Type", "application/manifest+json");
+  return c.body(
+    JSON.stringify({
+      name: "Padel Wednesdays",
+      short_name: "Padel",
+      start_url: `/join/${encodeURIComponent(c.env.GROUP_TOKEN)}`,
+      scope: "/",
+      display: "standalone",
+      background_color: "#0f3d2a",
+      theme_color: "#0f5132",
+      icons: [
+        { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+        { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+        { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      ],
+    }),
+  );
+});
+
 app.route("/", play);
 app.route("/leaderboard", leaderboard);
 app.route("/stats", stats);
