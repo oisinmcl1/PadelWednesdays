@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
-import { formatEuros, parseEuros } from "../money";
+import { formatEuros, parseEuros, splitCost } from "../money";
 import * as sessions from "../sessions";
 import type { AppEnv } from "../types";
 import { ErrorText, Layout } from "../views/layout";
@@ -65,6 +65,7 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
   const played = matches.filter((m) => m.games_a !== null);
   const [current, next] = matches.filter((m) => m.games_a === null);
   const last = played.at(-1);
+  const ballTurn = await sessions.ballTurnFor(c.env.DB, session.id);
 
   const ScoreTiles = ({ team }: { team: "a" | "b" }) => (
     <div class="score-tiles" role="radiogroup" aria-label={`Games for team ${team.toUpperCase()}`}>
@@ -89,6 +90,7 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
       >
         <p class="hint">
           {formatDate(session.date)} · Match {current.seq}
+          {ballTurn !== null && <> · Balls: {name.get(ballTurn)}</>}
         </p>
         <form method="post" action={`/matches/${current.id}/result`} class="match current" data-autosubmit>
           <div class="team">{names(current.a1, current.a2).map((n) => <span>{n}</span>)}</div>
@@ -177,12 +179,45 @@ play.post("/sessions", async (c) => {
 play.get("/sessions/end", async (c) => {
   const session = await sessions.getActiveSession(c.env.DB);
   if (!session) return c.redirect("/");
+  const [players, attendees, settings, turn] = await Promise.all([
+    db.listPlayers(c.env.DB),
+    sessions.sessionPlayerIds(c.env.DB, session.id),
+    db.getSettings(c.env.DB),
+    sessions.ballTurnFor(c.env.DB, session.id),
+  ]);
+  const name = new Map(players.map((p) => [p.id, p.name]));
+  const shares = splitCost(session.court_price_cents, attendees, settings.payerPlayerId);
+  const payerName = settings.payerPlayerId !== null ? name.get(settings.payerPlayerId) : undefined;
+  const owing = attendees.filter((id) => id !== settings.payerPlayerId);
+
   return c.html(
     <Layout title="End session" isAdmin={c.get("isAdmin")}>
       <h1>End the session?</h1>
-      <p>Unplayed matches will be dropped. If no results were logged, the session is deleted.</p>
       <form method="post" action="/sessions/end" class="stack">
         <input type="hidden" name="id" value={String(session.id)} />
+        <section class="card">
+          <h2>Court {formatEuros(session.court_price_cents)}</h2>
+          <ul class="plain">
+            {owing.map((id) => (
+              <li>
+                {name.get(id)} owes {payerName ?? "the payer"} <b>{formatEuros(shares.get(id)!)}</b>
+              </li>
+            ))}
+          </ul>
+          {!payerName && <p class="error">Nobody is set as the court payer yet. An admin can set it in Settings.</p>}
+        </section>
+        <label>
+          Who brought the balls?
+          <select name="balls">
+            {attendees.map((id) => (
+              <option value={String(id)} selected={id === turn}>
+                {name.get(id)}{id === turn ? " (their turn)" : ""}
+              </option>
+            ))}
+            <option value="" selected={turn === null}>Nobody / not tracked</option>
+          </select>
+        </label>
+        <p class="hint">Unplayed matches are dropped. If no results were logged, the session is deleted.</p>
         <button class="big">End session</button>
         <a href="/" class="button secondary">Keep playing</a>
       </form>
@@ -192,11 +227,15 @@ play.get("/sessions/end", async (c) => {
 
 play.post("/sessions/end", async (c) => {
   const session = await sessions.getActiveSession(c.env.DB);
+  const body = await c.req.parseBody();
   // The id guards against ending a session someone else just started.
-  if (session && String(session.id) === String((await c.req.parseBody()).id)) {
-    await sessions.endSession(c.env.DB, session.id);
-  }
-  return c.redirect("/", 303);
+  if (!session || String(session.id) !== String(body.id)) return c.redirect("/", 303);
+  const attendees = await sessions.sessionPlayerIds(c.env.DB, session.id);
+  const balls = Number(body.balls);
+  const ballBuyer = attendees.includes(balls) ? balls : null;
+  const { payerPlayerId } = await db.getSettings(c.env.DB);
+  const outcome = await sessions.endSession(c.env.DB, session.id, ballBuyer, payerPlayerId);
+  return c.redirect(outcome === "ended" ? `/history/${session.id}` : "/", 303);
 });
 
 play.post("/matches/:id{[0-9]+}/result", async (c) => {

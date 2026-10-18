@@ -1,4 +1,6 @@
 // Session and match queries, plus scheduling matches from the rotation engine.
+import { ballTurn } from "./balls";
+import { splitCost } from "./money";
 import { rebuildRatingsFrom, type PlayedMatch } from "./ratings";
 import { nextCycle, type Match } from "./rotation";
 
@@ -7,6 +9,7 @@ export type Session = {
   date: string;
   court_price_cents: number;
   ball_buyer_id: number | null;
+  payer_id: number | null;
   status: "active" | "ended";
 };
 
@@ -35,7 +38,7 @@ export const formatDate = (iso: string) =>
 
 export async function getSession(db: D1Database, id: number): Promise<Session | null> {
   return db
-    .prepare("SELECT id, date, court_price_cents, ball_buyer_id, status FROM sessions WHERE id = ?")
+    .prepare("SELECT id, date, court_price_cents, ball_buyer_id, payer_id, status FROM sessions WHERE id = ?")
     .bind(id)
     .first<Session>();
 }
@@ -43,7 +46,7 @@ export async function getSession(db: D1Database, id: number): Promise<Session | 
 export async function listEndedSessions(db: D1Database): Promise<(Session & { match_count: number })[]> {
   const { results } = await db
     .prepare(
-      `SELECT s.id, s.date, s.court_price_cents, s.ball_buyer_id, s.status,
+      `SELECT s.id, s.date, s.court_price_cents, s.ball_buyer_id, s.payer_id, s.status,
               (SELECT COUNT(*) FROM matches m WHERE m.session_id = s.id AND m.games_a IS NOT NULL) AS match_count
        FROM sessions s WHERE s.status = 'ended' ORDER BY s.date DESC, s.id DESC`,
     )
@@ -61,7 +64,7 @@ export async function playedMatches(db: D1Database): Promise<PlayedMatch[]> {
 
 export async function getActiveSession(db: D1Database): Promise<Session | null> {
   return db
-    .prepare("SELECT id, date, court_price_cents, ball_buyer_id, status FROM sessions WHERE status = 'active'")
+    .prepare("SELECT id, date, court_price_cents, ball_buyer_id, payer_id, status FROM sessions WHERE status = 'active'")
     .first<Session>();
 }
 
@@ -112,8 +115,17 @@ export async function startSession(
   return session.id;
 }
 
-/** Ends the session. A session with no results is deleted, so a mistaken start leaves no trace. */
-export async function endSession(db: D1Database, sessionId: number): Promise<void> {
+/**
+ * Ends the session: drops unplayed matches, records the ball buyer and payer, and
+ * works out everyone's share of the court. A session with no results is deleted
+ * instead, so a mistaken start leaves no trace.
+ */
+export async function endSession(
+  db: D1Database,
+  sessionId: number,
+  ballBuyerId: number | null,
+  payerId: number | null,
+): Promise<"ended" | "deleted"> {
   const played = await db
     .prepare("SELECT COUNT(*) AS n FROM matches WHERE session_id = ? AND games_a IS NOT NULL")
     .bind(sessionId)
@@ -124,12 +136,46 @@ export async function endSession(db: D1Database, sessionId: number): Promise<voi
       db.prepare("DELETE FROM session_players WHERE session_id = ?").bind(sessionId),
       db.prepare("DELETE FROM sessions WHERE id = ?").bind(sessionId),
     ]);
-  } else {
-    await db.batch([
-      db.prepare("DELETE FROM matches WHERE session_id = ? AND games_a IS NULL").bind(sessionId),
-      db.prepare("UPDATE sessions SET status = 'ended' WHERE id = ?").bind(sessionId),
-    ]);
+    return "deleted";
   }
+  await db.batch([
+    db.prepare("DELETE FROM matches WHERE session_id = ? AND games_a IS NULL").bind(sessionId),
+    db
+      .prepare("UPDATE sessions SET status = 'ended', ball_buyer_id = ?, payer_id = ? WHERE id = ?")
+      .bind(ballBuyerId, payerId, sessionId),
+    ...(await shareUpdates(db, sessionId, payerId)),
+  ]);
+  return "ended";
+}
+
+/** Changes a session's court price and re-splits it. Paid marks are kept. */
+export async function setSessionPrice(db: D1Database, sessionId: number, cents: number): Promise<void> {
+  await db.prepare("UPDATE sessions SET court_price_cents = ? WHERE id = ?").bind(cents, sessionId).run();
+  const session = (await getSession(db, sessionId))!;
+  if (session.status === "ended") await db.batch(await shareUpdates(db, sessionId, session.payer_id));
+}
+
+async function shareUpdates(db: D1Database, sessionId: number, payerId: number | null) {
+  const session = (await getSession(db, sessionId))!;
+  const attendees = await sessionPlayerIds(db, sessionId);
+  const shares = splitCost(session.court_price_cents, attendees, payerId);
+  const stmt = db.prepare("UPDATE session_players SET share_cents = ? WHERE session_id = ? AND player_id = ?");
+  return attendees.map((id) => stmt.bind(shares.get(id)!, sessionId, id));
+}
+
+/** Whose turn it is to bring balls, among the people at this session. */
+export async function ballTurnFor(db: D1Database, sessionId: number): Promise<number | null> {
+  const [players, present, last] = await Promise.all([
+    db.prepare("SELECT id, ball_order FROM players WHERE active = 1").all<{ id: number; ball_order: number | null }>(),
+    sessionPlayerIds(db, sessionId),
+    db
+      .prepare(
+        `SELECT p.ball_order FROM sessions s JOIN players p ON p.id = s.ball_buyer_id
+         WHERE s.status = 'ended' ORDER BY s.date DESC, s.id DESC LIMIT 1`,
+      )
+      .first<{ ball_order: number | null }>(),
+  ]);
+  return ballTurn(players.results, last?.ball_order ?? null, new Set(present));
 }
 
 const toMatch = (m: MatchRow): Match => ({

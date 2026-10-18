@@ -1,4 +1,5 @@
 import type { Child } from "hono/jsx";
+import { formatEuros } from "../money";
 
 type Props = { title: string; isAdmin: boolean; nav?: boolean; children?: Child };
 
@@ -18,6 +19,7 @@ export const Layout = ({ title, isAdmin, nav = true, children }: Props) => (
         <nav class="topnav">
           <a href="/">Play</a>
           <a href="/leaderboard">Table</a>
+          <a href="/money">Money</a>
           <a href="/history">History</a>
           <a href="/players">Players</a>
           {isAdmin ? <a href="/settings">Settings</a> : null}
@@ -31,3 +33,11 @@ export const Layout = ({ title, isAdmin, nav = true, children }: Props) => (
 
 export const ErrorText = ({ error }: { error?: string }) =>
   error ? <p class="error" role="alert">{error}</p> : null;
+
+/** Opens the payer's Revolut.me link. Revolut has no documented way to pre-fill the amount, so we show it. */
+export const PayButton = ({ cents, url }: { cents: number; url: string }) =>
+  url ? (
+    <a class="button small" href={url} target="_blank" rel="noopener">
+      Pay {formatEuros(cents)}
+    </a>
+  ) : null;
