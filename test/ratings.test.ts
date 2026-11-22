@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { rate, rating } from "openskill";
 import { applyMatches, displayRating, latestRatings, winChance, type PlayedMatch } from "../src/ratings";
 
-const m = (id: number, a: [number, number], b: [number, number], ga: number, gb: number): PlayedMatch => ({
-  id, a1: a[0], a2: a[1], b1: b[0], b2: b[1], games_a: ga, games_b: gb,
-});
+/** A match of the given sets, or of one set when given two numbers. */
+function m(id: number, a: [number, number], b: [number, number], ...score: number[] | [number, number][]): PlayedMatch {
+  const sets = (typeof score[0] === "number" ? [score] : score) as [number, number][];
+  const sets_a = sets.filter(([ga, gb]) => ga > gb).length;
+  return { id, a1: a[0], a2: a[1], b1: b[0], b2: b[1], sets_a, sets_b: sets.length - sets_a, sets };
+}
 
 /** A plausible evening across 6 players. */
 const history: PlayedMatch[] = [
@@ -45,6 +48,17 @@ describe("applyMatches", () => {
     expect(delta(0) / delta(4)).toBeCloseTo(1 + Math.log(5), 6);
   });
 
+  it("rates each set in order, one row per player per match", () => {
+    const sets: [number, number][] = [[5, 3], [2, 5], [5, 4]];
+    const bySet = sets.reduce(
+      (start, set, i) => latestRatings(applyMatches(start, [m(i + 1, [1, 2], [3, 4], ...set)])),
+      new Map(),
+    );
+    const rows = applyMatches(new Map(), [m(1, [1, 2], [3, 4], ...sets)]);
+    expect(rows).toHaveLength(4);
+    expect(latestRatings(rows)).toEqual(bySet);
+  });
+
   it("writes 4 rows per match", () => {
     expect(applyMatches(new Map(), history)).toHaveLength(history.length * 4);
   });
@@ -60,7 +74,7 @@ describe("applyMatches", () => {
 
   it("editing an old result changes later ratings, not earlier ones", () => {
     const original = applyMatches(new Map(), history);
-    const edited = history.map((x) => (x.id === 3 ? { ...x, games_a: 1, games_b: 5 } : x));
+    const edited = history.map((x) => (x.id === 3 ? { ...x, sets_a: 0, sets_b: 1, sets: [[1, 5]] as [number, number][] } : x));
     const after = applyMatches(new Map(), edited);
     expect(after.filter((r) => r.match_id < 3)).toEqual(original.filter((r) => r.match_id < 3));
     expect(after.filter((r) => r.match_id >= 3)).not.toEqual(original.filter((r) => r.match_id >= 3));

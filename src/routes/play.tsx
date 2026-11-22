@@ -5,7 +5,7 @@ import { currentRatings, winChance } from "../ratings";
 import { formatMoney, parseMoney, splitCost } from "../money";
 import * as sessions from "../sessions";
 import type { AppEnv } from "../types";
-import { ErrorText, Layout } from "../views/layout";
+import { ErrorText, Layout, Score } from "../views/layout";
 
 const play = new Hono<AppEnv>();
 
@@ -60,9 +60,13 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
   const name = new Map(players.map((p) => [p.id, p.name]));
   const names = (...ids: (number | null)[]) =>
     ids.filter((id): id is number => id !== null).map((id) => name.get(id) ?? "?");
-  const played = matches.filter((m) => m.games_a !== null);
-  const [current, next] = matches.filter((m) => m.games_a === null);
-  const last = played.at(-1);
+  const played = matches.filter((m) => m.sets_a !== null);
+  const [current, next] = matches.filter((m) => m.sets_a === null);
+  // The latest set logged, for Undo: in the current match, or else the end of the last match.
+  const last = current.sets.length > 0 ? current : played.at(-1);
+  const lastSet = last && { n: last.sets.length, games: last.sets.at(-1)! };
+  const [setsA, setsB] = sessions.setsWon(current.sets);
+  const setNo = current.sets.length + 1;
   const ballTurn = await sessions.ballTurnFor(c.env.DB, session.id);
   const ratings = await currentRatings(c.env.DB, await sessions.sessionPlayerIds(c.env.DB, session.id));
 
@@ -97,7 +101,8 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
         hx-swap="outerHTML"
       >
         <p class="hint">
-          {formatDate(session.date)} · Match {current.seq}
+          {formatDate(session.date)} · Match {current.seq} · Set {setNo}
+          {setNo > 1 && <> ({setsA}–{setsB})</>}
           {ballTurn !== null && <> · Balls: {name.get(ballTurn)}</>}
         </p>
         {c.req.query("bad") === "1" && (
@@ -111,6 +116,10 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           class="match current"
           data-score-form
           data-first-to={String(sessions.WIN_GAMES)}
+          data-set={String(setNo)}
+          data-sets-a={String(setsA)}
+          data-sets-b={String(setsB)}
+          data-sets-to-win={String(sessions.SETS_TO_WIN)}
           data-team-a={names(current.a1, current.a2).join(" & ")}
           data-team-b={names(current.b1, current.b2).join(" & ")}
         >
@@ -121,14 +130,18 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           <div class="team">{names(current.b1, current.b2).map((n) => <span>{n}</span>)}</div>
           {currentOdds && <p class="odds">{currentOdds[1]}% to win</p>}
           <ScoreTiles team="b" />
+          <input type="hidden" name="n" value={String(setNo)} />
+          {current.sets.length > 0 && <p class="sets-so-far">{sessions.formatSets(current.sets)}</p>}
           {current.sit1 !== null && <p class="sitting">Sitting out: {names(current.sit1, current.sit2).join(" & ")}</p>}
-          <button class="save" data-save>Save result</button>
+          <button class="save" data-save>Save set {setNo}</button>
         </form>
 
-        {last && (
+        {last && lastSet && (
           <form method="post" action={`/matches/${last.id}/undo`} class="last">
+            <input type="hidden" name="n" value={String(lastSet.n)} />
             <span>
-              Last: {names(last.a1, last.a2).join(" & ")} <b>{last.games_a}–{last.games_b}</b> {names(last.b1, last.b2).join(" & ")}
+              Last: {names(last.a1, last.a2).join(" & ")} <b>{lastSet.games[0]}–{lastSet.games[1]}</b>{" "}
+              {names(last.b1, last.b2).join(" & ")}
             </span>
             <button class="secondary small">Undo</button>
           </form>
@@ -154,7 +167,7 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
               {played.map((m) => (
                 <li>
                   <span>{names(m.a1, m.a2).join(" & ")}</span>
-                  <b>{m.games_a}–{m.games_b}</b>
+                  <Score m={m} />
                   <span>{names(m.b1, m.b2).join(" & ")}</span>
                   {isAdmin && <a href={`/matches/${m.id}/edit`}>Edit</a>}
                 </li>
@@ -266,29 +279,34 @@ play.post("/matches/:id{[0-9]+}/result", async (c) => {
   const body = await c.req.parseBody();
   const games = sessions.parseGames(body.a, body.b);
   if (!games) return c.redirect("/?bad=1", 303);
-  await sessions.logResult(c.env.DB, Number(c.req.param("id")), games);
+  await sessions.logSet(c.env.DB, Number(c.req.param("id")), Number(body.n), games);
   return c.redirect("/", 303);
 });
 
 play.post("/matches/:id{[0-9]+}/undo", async (c) => {
   const session = await sessions.getActiveSession(c.env.DB);
-  if (session) await sessions.undoLastResult(c.env.DB, session.id, Number(c.req.param("id")));
+  const body = await c.req.parseBody();
+  if (session) await sessions.undoLastSet(c.env.DB, session.id, Number(c.req.param("id")), Number(body.n));
   return c.redirect("/", 303);
 });
 
 play.get("/matches/:id{[0-9]+}/edit", requireAdmin, async (c) => {
   const match = await sessions.getMatch(c.env.DB, Number(c.req.param("id")));
-  if (!match || match.games_a === null) return c.notFound();
+  if (!match || match.sets_a === null) return c.notFound();
   return editPage(c, match);
 });
 
 play.post("/matches/:id{[0-9]+}/edit", requireAdmin, async (c) => {
   const match = await sessions.getMatch(c.env.DB, Number(c.req.param("id")));
-  if (!match || match.games_a === null) return c.notFound();
+  if (!match || match.sets_a === null) return c.notFound();
   const body = await c.req.parseBody();
-  const games = sessions.parseGames(body.a, body.b);
-  if (!games) return editPage(c, match, "Not a valid score.");
-  await sessions.editResult(c.env.DB, match.id, games);
+  const rows = [1, 2, 3].map((i) => [body[`a${i}`], body[`b${i}`]] as const).filter(([a, b]) => a !== "" || b !== "");
+  const sets = rows.map(([a, b]) => sessions.parseGames(a, b));
+  const valid = sets.every((st) => st !== null) && sessions.parseSets(sets as [number, number][]) !== null;
+  // Results from before best of 3 were one set; those can stay that way.
+  const oldOneSet = match.sets.length === 1 && sets.length === 1 && sets[0] !== null;
+  if (!valid && !oldOneSet) return editPage(c, match, "Not a valid score. Best of 3, each set first to 5.");
+  await sessions.editResult(c.env.DB, match.id, sets as [number, number][]);
   return c.redirect(await backFromEdit(c.env.DB, match.session_id), 303);
 });
 
@@ -298,7 +316,7 @@ async function backFromEdit(d: D1Database, sessionId: number) {
   return active?.id === sessionId ? "/" : `/history/${sessionId}`;
 }
 
-async function editPage(c: Context<AppEnv>, m: sessions.MatchRow & { session_id: number }, error?: string) {
+async function editPage(c: Context<AppEnv>, m: sessions.MatchWithSets & { session_id: number }, error?: string) {
   const players = await db.listPlayers(c.env.DB);
   const name = new Map(players.map((p) => [p.id, p.name]));
   const team = (x: number, y: number) => `${name.get(x)} & ${name.get(y)}`;
@@ -307,14 +325,33 @@ async function editPage(c: Context<AppEnv>, m: sessions.MatchRow & { session_id:
       <h1>Edit result</h1>
       <ErrorText error={error} />
       <form method="post" class="stack">
-        <label>
-          {team(m.a1, m.a2)}
-          <input name="a" value={String(m.games_a)} inputmode="numeric" pattern="[0-9]" required />
-        </label>
-        <label>
-          {team(m.b1, m.b2)}
-          <input name="b" value={String(m.games_b)} inputmode="numeric" pattern="[0-9]" required />
-        </label>
+        <table class="table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>{team(m.a1, m.a2)}</th>
+              <th>{team(m.b1, m.b2)}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[1, 2, 3].map((i) => (
+              <tr>
+                <th>Set {i}</th>
+                {(["a", "b"] as const).map((t, j) => (
+                  <td>
+                    <input
+                      name={`${t}${i}`}
+                      value={m.sets[i - 1] ? String(m.sets[i - 1][j]) : ""}
+                      inputmode="numeric"
+                      pattern="[0-9]"
+                      aria-label={`Set ${i}, ${team(t === "a" ? m.a1 : m.b1, t === "a" ? m.a2 : m.b2)}`}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
         <button class="big">Save</button>
         <a href={await backFromEdit(c.env.DB, m.session_id)} class="button secondary">Cancel</a>
       </form>

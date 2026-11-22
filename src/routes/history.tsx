@@ -7,7 +7,7 @@ import { formatMoney, parseMoney } from "../money";
 import * as sessions from "../sessions";
 import type { AppEnv } from "../types";
 import { standings } from "../stats";
-import { Layout, PayButton } from "../views/layout";
+import { Layout, PayButton, Score } from "../views/layout";
 
 const history = new Hono<AppEnv>();
 
@@ -45,13 +45,13 @@ history.get("/:id{[0-9]+}", async (c) => {
   const team = (x: number, y: number) => `${name.get(x)} & ${name.get(y)}`;
   const isAdmin = c.get("isAdmin");
   const back = `/history/${session.id}`;
-  const played = matches.filter((m): m is typeof m & { games_a: number; games_b: number } => m.games_a !== null);
+  const played = matches.filter((m): m is typeof m & { sets_a: number; sets_b: number } => m.sets_a !== null);
   const recap = {
     iso: session.date,
     date: sessions.formatDate(session.date),
     balls: session.ball_buyer_id !== null ? name.get(session.ball_buyer_id) : null,
     standings: standings(played).map((s) => ({ name: name.get(s.id), wins: s.wins, losses: s.losses, diff: s.diff })),
-    results: played.map((m) => ({ a: team(m.a1, m.a2), b: team(m.b1, m.b2), ga: m.games_a, gb: m.games_b })),
+    results: played.map((m) => ({ a: team(m.a1, m.a2), b: team(m.b1, m.b2), score: m.sets.length === 1 ? sessions.formatSets(m.sets) : `${m.sets_a}–${m.sets_b}`, sets: m.sets.length === 1 ? "" : sessions.formatSets(m.sets) })),
   };
 
   return c.html(
@@ -77,7 +77,7 @@ history.get("/:id{[0-9]+}", async (c) => {
         {played.map((m) => (
             <li>
               <span>{team(m.a1, m.a2)}</span>
-              <b>{m.games_a}–{m.games_b}</b>
+              <Score m={m} />
               <span>{team(m.b1, m.b2)}</span>
               {isAdmin && <a href={`/matches/${m.id}/edit`}>Edit</a>}
             </li>

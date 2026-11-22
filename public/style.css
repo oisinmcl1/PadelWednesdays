@@ -139,6 +139,9 @@ button.small { min-height: 40px; padding: 0.4rem 0.9rem; }
 }
 .results li span:last-of-type { text-align: right; }
 .results li b { font-variant-numeric: tabular-nums; }
+.score { text-align: center; }
+.score small { display: block; font-weight: 400; font-size: 0.75rem; color: var(--muted); }
+.sets-so-far { text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; margin: 0.5rem 0 0; }
 
 /* ---------- tables ---------- */
 .table-wrap { overflow-x: auto; }

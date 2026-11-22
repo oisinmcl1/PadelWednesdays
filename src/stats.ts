@@ -20,7 +20,7 @@ function add(map: Map<number | string, Record>, key: number | string, result: nu
 
 /** One match from a player's point of view, or null if they didn't play in it. */
 export function perspective(m: PlayedMatch, id: number) {
-  const resultA = Math.sign(m.games_a - m.games_b); // 1 = A won, 0 = draw, -1 = B won
+  const resultA = Math.sign(m.sets_a - m.sets_b); // 1 = A won, 0 = draw, -1 = B won
   if (m.a1 === id || m.a2 === id) {
     return { partner: m.a1 === id ? m.a2 : m.a1, opponents: [m.b1, m.b2], result: resultA };
   }
@@ -34,7 +34,7 @@ export function perspective(m: PlayedMatch, id: number) {
 export function records(matches: PlayedMatch[]): Map<number, Record> {
   const out = new Map<number, Record>();
   for (const m of matches) {
-    const resultA = Math.sign(m.games_a - m.games_b);
+    const resultA = Math.sign(m.sets_a - m.sets_b);
     for (const id of [m.a1, m.a2]) add(out, id, resultA);
     for (const id of [m.b1, m.b2]) add(out, id, -resultA);
   }
@@ -94,7 +94,7 @@ export const pairKey = (x: number, y: number) => (x < y ? `${x}-${y}` : `${y}-${
 export function partnerships(matches: PlayedMatch[]): Map<string, Record> {
   const out = new Map<string, Record>();
   for (const m of matches) {
-    const resultA = Math.sign(m.games_a - m.games_b);
+    const resultA = Math.sign(m.sets_a - m.sets_b);
     add(out, pairKey(m.a1, m.a2), resultA);
     add(out, pairKey(m.b1, m.b2), -resultA);
   }
@@ -109,13 +109,14 @@ export const formatSeason = (season: string) =>
 
 export type Standing = Record & { id: number; diff: number };
 
-/** One session's table: most wins, then best games difference, then fewest losses. */
+/** One session's table: most match wins, then best games difference (over every set), then fewest losses. */
 export function standings(matches: PlayedMatch[]): Standing[] {
   const recs = records(matches);
   const diff = new Map<number, number>();
   for (const m of matches) {
-    for (const id of [m.a1, m.a2]) diff.set(id, (diff.get(id) ?? 0) + m.games_a - m.games_b);
-    for (const id of [m.b1, m.b2]) diff.set(id, (diff.get(id) ?? 0) + m.games_b - m.games_a);
+    const d = m.sets.reduce((sum, [ga, gb]) => sum + ga - gb, 0);
+    for (const id of [m.a1, m.a2]) diff.set(id, (diff.get(id) ?? 0) + d);
+    for (const id of [m.b1, m.b2]) diff.set(id, (diff.get(id) ?? 0) - d);
   }
   return [...recs]
     .map(([id, r]) => ({ id, ...r, diff: diff.get(id)! }))

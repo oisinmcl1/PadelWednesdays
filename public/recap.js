@@ -85,9 +85,14 @@
       font(400, 30);
       text(r.a, W / 2 - 70, y, C.text, "right");
       font(800, 32);
-      text(`${r.ga}–${r.gb}`, W / 2, y, C.accent, "center");
+      text(r.score, W / 2, y, C.accent, "center");
       font(400, 30);
       text(r.b, W / 2 + 70, y, C.text, "left");
+      // Set scores, small, under the result.
+      if (r.sets) {
+        font(400, 20);
+        text(r.sets, W / 2, y + 22, C.muted, "center");
+      }
     }
     if (shown.length < data.results.length) {
       y += lineH;

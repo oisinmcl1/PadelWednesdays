@@ -26,8 +26,9 @@ Picks teams, logs results, tracks stats, splits the court cost. Used on phones
       Prefer partners who haven't played together this session, then recently.
     - When a cycle ends, start another until the session is ended.
 3. Match screen: current match, next match, who's sitting out. Big tap targets.
-4. Log result: tap each team's games, then confirm with Save (which spells out the result).
-   Undo/edit allowed.
+4. Log result, set by set: tap each team's games, then confirm with Save (which spells out
+   the result). The matchup stays on screen until a team has won 2 sets. Undo removes the
+   last set; admin can edit a whole match's sets.
 5. End session: summary, cost split, ball buyer, recap image.
 
 ## Money
@@ -41,7 +42,8 @@ Picks teams, logs results, tracks stats, splits the court cost. Used on phones
   the session. Ball cost is not split.
 
 ## Ratings & stats
-- openskill per individual player; update after every match. The winning margin counts
+- openskill per individual player; update after every match, once per set in order. The
+  winning margin of each set counts
   (openskill `margin` option, MARGIN = 1 in src/ratings.ts): 5–4 moves ratings like a plain
   win, 5–0 about 2.6x as far.
 - Ratings must be recomputable from match history, so editing an old result is safe.
@@ -59,7 +61,9 @@ Picks teams, logs results, tracks stats, splits the court cost. Used on phones
 - settings (key, value)
 - sessions (id, date, court_price, ball_buyer_id, status)
 - session_players (session_id, player_id, share_cents, paid_at)
-- matches (id, session_id, seq, a1, a2, b1, b2, sitting_out, games_a, games_b, played_at)
+- matches (id, session_id, seq, cycle, a1, a2, b1, b2, sit1, sit2, sets_a, sets_b, played_at)
+  (sets_a/sets_b = sets won, NULL until the match is decided)
+- sets (match_id, n, games_a, games_b)
 
 ## Build phases
 1. Scaffold Hono + D1 + Wrangler, local dev. Players + settings pages. Token + admin PIN.
@@ -71,9 +75,11 @@ Picks teams, logs results, tracks stats, splits the court cost. Used on phones
 7. Later: pre-match odds, left/right side tracking.
 
 ## Scoring
-- First to 5 games. On 4 you're on match point: win the next game to win the match,
-  lose a game on match point and you drop back to 3. Final scores are always 5–0 to 5–4;
-  no draws. (`WIN_GAMES` in src/sessions.ts.)
+- Each match is best of 3 sets: 2–0 or 2–1. (`SETS_TO_WIN` in src/sessions.ts.)
+- Each set, the third included, is first to 5 games. On 4 you're on set point: win the next
+  game to win the set, lose a game on set point and you drop back to 3. Set scores are always
+  5–0 to 5–4; no draws. (`WIN_GAMES` in src/sessions.ts.)
+- Results from before best of 3 are kept as one-set matches (shown as just "5–3").
 
 ## How to work
 - Work autonomously through the phases; no go-ahead needed between them.

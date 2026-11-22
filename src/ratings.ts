@@ -1,4 +1,5 @@
-// openskill ratings, one per player, updated after every match.
+// openskill ratings, one per player, updated after every match: once per set,
+// in order, when the match is decided.
 //
 // rating_history stores each player's rating after each match. When a result is
 // logged, edited or undone, we replay only from that match onward, starting from
@@ -12,8 +13,10 @@ export type PlayedMatch = {
   a2: number;
   b1: number;
   b2: number;
-  games_a: number;
-  games_b: number;
+  sets_a: number;
+  sets_b: number;
+  /** Games in each set, in order: [games_a, games_b]. */
+  sets: [number, number][];
 };
 
 export type RatingRow = { match_id: number; player_id: number; mu: number; sigma: number };
@@ -27,18 +30,24 @@ export type RatingRow = { match_id: number; player_id: number; mu: number; sigma
  */
 const MARGIN = 1;
 
-/** Applies matches in order on top of `start`. Returns every player's rating after each match. */
+/**
+ * Applies matches in order on top of `start`, one rating update per set. Returns
+ * every player's rating after each match.
+ */
 export function applyMatches(start: Map<number, Rating>, matches: PlayedMatch[]): RatingRow[] {
   const current = new Map(start);
   const get = (id: number) => current.get(id) ?? rating();
   const rows: RatingRow[] = [];
   for (const m of matches) {
-    const [[a1, a2], [b1, b2]] = rate(
-      [[get(m.a1), get(m.a2)], [get(m.b1), get(m.b2)]],
-      { score: [m.games_a, m.games_b], margin: MARGIN },
-    );
-    for (const [id, r] of [[m.a1, a1], [m.a2, a2], [m.b1, b1], [m.b2, b2]] as const) {
-      current.set(id, r);
+    for (const score of m.sets) {
+      const [[a1, a2], [b1, b2]] = rate(
+        [[get(m.a1), get(m.a2)], [get(m.b1), get(m.b2)]],
+        { score, margin: MARGIN },
+      );
+      for (const [id, r] of [[m.a1, a1], [m.a2, a2], [m.b1, b1], [m.b2, b2]] as const) current.set(id, r);
+    }
+    for (const id of [m.a1, m.a2, m.b1, m.b2]) {
+      const r = get(id);
       rows.push({ match_id: m.id, player_id: id, mu: r.mu, sigma: r.sigma });
     }
   }
@@ -67,20 +76,33 @@ export const displayRating = (r: Rating) => Math.round(ordinal(r) * 10) / 10;
 /** Rating order for matches: by session date, then session, then match number. */
 const MATCH_ORDER = "s.date, s.id, m.seq";
 
-type OrderedMatch = Omit<PlayedMatch, "games_a" | "games_b"> & { games_a: number | null; games_b: number | null };
+type OrderedMatch = Omit<PlayedMatch, "sets_a" | "sets_b"> & { sets_a: number | null; sets_b: number | null };
 
 async function allMatchesInOrder(db: D1Database): Promise<OrderedMatch[]> {
   const { results } = await db
     .prepare(
-      `SELECT m.id, m.a1, m.a2, m.b1, m.b2, m.games_a, m.games_b
+      `SELECT m.id, m.a1, m.a2, m.b1, m.b2, m.sets_a, m.sets_b
        FROM matches m JOIN sessions s ON s.id = m.session_id
        ORDER BY ${MATCH_ORDER}`,
     )
-    .all<OrderedMatch>();
-  return results;
+    .all<Omit<OrderedMatch, "sets">>();
+  return withSets(db, results);
 }
 
-const isPlayed = (m: OrderedMatch): m is PlayedMatch => m.games_a !== null && m.games_b !== null;
+const isPlayed = (m: OrderedMatch): m is PlayedMatch => m.sets_a !== null && m.sets_b !== null;
+
+/** Adds each match's set scores, in order. */
+export async function withSets<M extends { id: number }>(db: D1Database, matches: M[]): Promise<(M & { sets: [number, number][] })[]> {
+  const { results } = await db
+    .prepare("SELECT match_id, games_a, games_b FROM sets ORDER BY match_id, n")
+    .all<{ match_id: number; games_a: number; games_b: number }>();
+  const byMatch = new Map<number, [number, number][]>();
+  for (const s of results) {
+    if (!byMatch.has(s.match_id)) byMatch.set(s.match_id, []);
+    byMatch.get(s.match_id)!.push([s.games_a, s.games_b]);
+  }
+  return matches.map((m) => ({ ...m, sets: byMatch.get(m.id) ?? [] }));
+}
 
 /** All stored rating rows, in match order. */
 export async function ratingRowsInOrder(db: D1Database): Promise<RatingRow[]> {

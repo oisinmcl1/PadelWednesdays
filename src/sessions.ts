@@ -1,7 +1,7 @@
 // Session and match queries, plus scheduling matches from the rotation engine.
 import { ballTurn } from "./balls";
 import { splitCost } from "./money";
-import { rebuildRatingsFrom } from "./ratings";
+import { rebuildRatingsFrom, withSets } from "./ratings";
 import type { DatedMatch } from "./stats";
 import { nextCycle, type Match } from "./rotation";
 
@@ -24,9 +24,12 @@ export type MatchRow = {
   b2: number;
   sit1: number | null;
   sit2: number | null;
-  games_a: number | null;
-  games_b: number | null;
+  sets_a: number | null; // sets won; null until the match is decided
+  sets_b: number | null;
 };
+
+/** A match with its set scores so far, in order: [games_a, games_b]. */
+export type MatchWithSets = MatchRow & { sets: [number, number][] };
 
 /** Today's date in Ireland, as YYYY-MM-DD. */
 export function todayInIreland(now = new Date()): string {
@@ -48,7 +51,7 @@ export async function listEndedSessions(db: D1Database): Promise<(Session & { ma
   const { results } = await db
     .prepare(
       `SELECT s.id, s.date, s.court_price_cents, s.ball_buyer_id, s.payer_id, s.status,
-              (SELECT COUNT(*) FROM matches m WHERE m.session_id = s.id AND m.games_a IS NOT NULL) AS match_count
+              (SELECT COUNT(*) FROM matches m WHERE m.session_id = s.id AND m.sets_a IS NOT NULL) AS match_count
        FROM sessions s WHERE s.status = 'ended' ORDER BY s.date DESC, s.id DESC`,
     )
     .all<Session & { match_count: number }>();
@@ -59,13 +62,13 @@ export async function listEndedSessions(db: D1Database): Promise<(Session & { ma
 export async function playedMatches(db: D1Database): Promise<DatedMatch[]> {
   const { results } = await db
     .prepare(
-      `SELECT m.id, m.a1, m.a2, m.b1, m.b2, m.games_a, m.games_b, m.session_id, s.date
+      `SELECT m.id, m.a1, m.a2, m.b1, m.b2, m.sets_a, m.sets_b, m.session_id, s.date
        FROM matches m JOIN sessions s ON s.id = m.session_id
-       WHERE m.games_a IS NOT NULL
+       WHERE m.sets_a IS NOT NULL
        ORDER BY s.date, s.id, m.seq`,
     )
-    .all<DatedMatch>();
-  return results;
+    .all<Omit<DatedMatch, "sets">>();
+  return withSets(db, results);
 }
 
 export async function getActiveSession(db: D1Database): Promise<Session | null> {
@@ -82,15 +85,27 @@ export async function sessionPlayerIds(db: D1Database, sessionId: number): Promi
   return results.map((r) => r.player_id);
 }
 
-export async function listMatches(db: D1Database, sessionId: number): Promise<MatchRow[]> {
-  const { results } = await db
-    .prepare(
-      `SELECT id, seq, cycle, a1, a2, b1, b2, sit1, sit2, games_a, games_b
-       FROM matches WHERE session_id = ? ORDER BY seq`,
-    )
-    .bind(sessionId)
-    .all<MatchRow>();
-  return results;
+export async function listMatches(db: D1Database, sessionId: number): Promise<MatchWithSets[]> {
+  const [{ results }, { results: sets }] = await Promise.all([
+    db
+      .prepare(
+        `SELECT id, seq, cycle, a1, a2, b1, b2, sit1, sit2, sets_a, sets_b
+         FROM matches WHERE session_id = ? ORDER BY seq`,
+      )
+      .bind(sessionId)
+      .all<MatchRow>(),
+    db
+      .prepare(
+        `SELECT st.match_id, st.games_a, st.games_b FROM sets st JOIN matches m ON m.id = st.match_id
+         WHERE m.session_id = ? ORDER BY st.match_id, st.n`,
+      )
+      .bind(sessionId)
+      .all<{ match_id: number; games_a: number; games_b: number }>(),
+  ]);
+  return results.map((m) => ({
+    ...m,
+    sets: sets.filter((st) => st.match_id === m.id).map((st): [number, number] => [st.games_a, st.games_b]),
+  }));
 }
 
 /**
@@ -133,7 +148,7 @@ export async function endSession(
   payerId: number | null,
 ): Promise<"ended" | "deleted"> {
   const played = await db
-    .prepare("SELECT COUNT(*) AS n FROM matches WHERE session_id = ? AND games_a IS NOT NULL")
+    .prepare("SELECT COUNT(*) AS n FROM matches WHERE session_id = ? AND sets_a IS NOT NULL")
     .bind(sessionId)
     .first<{ n: number }>();
   if (played!.n === 0) {
@@ -145,7 +160,7 @@ export async function endSession(
     return "deleted";
   }
   await db.batch([
-    db.prepare("DELETE FROM matches WHERE session_id = ? AND games_a IS NULL").bind(sessionId),
+    db.prepare("DELETE FROM matches WHERE session_id = ? AND sets_a IS NULL").bind(sessionId),
     db
       .prepare("UPDATE sessions SET status = 'ended', ball_buyer_id = ?, payer_id = ? WHERE id = ?")
       .bind(ballBuyerId, payerId, sessionId),
@@ -203,14 +218,14 @@ const toMatch = (m: MatchRow): Match => ({
  */
 export async function ensureUpcoming(db: D1Database, sessionId: number): Promise<void> {
   const matches = await listMatches(db, sessionId);
-  if (matches.filter((m) => m.games_a === null).length >= 2) return;
+  if (matches.filter((m) => m.sets_a === null).length >= 2) return;
 
   const players = await sessionPlayerIds(db, sessionId);
   const { results: recent } = await db
     .prepare(
       `SELECT * FROM (
-         SELECT m.id, m.seq, m.cycle, m.a1, m.a2, m.b1, m.b2, m.sit1, m.sit2, m.games_a, m.games_b
-         FROM matches m WHERE m.session_id != ? AND m.games_a IS NOT NULL
+         SELECT m.id, m.seq, m.cycle, m.a1, m.a2, m.b1, m.b2, m.sit1, m.sit2, m.sets_a, m.sets_b
+         FROM matches m WHERE m.session_id != ? AND m.sets_a IS NOT NULL
          ORDER BY m.id DESC LIMIT 30
        ) ORDER BY id`,
     )
@@ -243,13 +258,15 @@ export async function ensureUpcoming(db: D1Database, sessionId: number): Promise
 // ---------- results ----------
 
 /**
- * Matches are first to 5 games. Reaching 4 puts you on match point; you must win
- * the next game from there, and losing a game on match point drops you back to 3.
- * So every final score is 5 for the winner and 0-4 for the loser. No draws.
+ * Matches are best of 3 sets. Each set is first to 5 games. Reaching 4 puts you
+ * on set point; you must win the next game from there, and losing a game on set
+ * point drops you back to 3. So every set score is 5 for the winner and 0-4 for
+ * the loser. No draws.
  */
 export const WIN_GAMES = 5;
+export const SETS_TO_WIN = 2;
 
-/** Parses a final score. Valid: one team on WIN_GAMES, the other on 0 to WIN_GAMES - 1. */
+/** Parses one set score. Valid: one team on WIN_GAMES, the other on 0 to WIN_GAMES - 1. */
 export function parseGames(a: unknown, b: unknown): [number, number] | null {
   const ok = (v: unknown) => typeof v === "string" && /^\d{1,2}$/.test(v);
   if (!ok(a) || !ok(b)) return null;
@@ -258,50 +275,105 @@ export function parseGames(a: unknown, b: unknown): [number, number] | null {
   return valid ? [ga, gb] : null;
 }
 
-export async function getMatch(db: D1Database, matchId: number): Promise<(MatchRow & { session_id: number }) | null> {
-  return db
+/** Sets won by each team from set scores. */
+export function setsWon(sets: [number, number][]): [number, number] {
+  const a = sets.filter(([ga, gb]) => ga > gb).length;
+  return [a, sets.length - a];
+}
+
+/** True once a team has won SETS_TO_WIN sets. */
+export const isDecided = (sets: [number, number][]) => Math.max(...setsWon(sets)) >= SETS_TO_WIN;
+
+/**
+ * Checks a whole match's set scores (for editing). Valid: every set is a valid
+ * score and the last set is the one that gives a team SETS_TO_WIN, so no sets
+ * are missing and none come after the match is won. Returns the sets won.
+ */
+export function parseSets(sets: [number, number][]): [number, number] | null {
+  if (sets.length === 0) return null;
+  for (let i = 0; i < sets.length; i++) {
+    if (parseGames(String(sets[i][0]), String(sets[i][1])) === null) return null;
+    if (isDecided(sets.slice(0, i + 1)) !== (i === sets.length - 1)) return null;
+  }
+  return setsWon(sets);
+}
+
+/** Set scores for display, e.g. "5–3 2–5 5–4". */
+export const formatSets = (sets: [number, number][]) => sets.map(([a, b]) => `${a}–${b}`).join(" ");
+
+export async function getMatch(db: D1Database, matchId: number): Promise<(MatchWithSets & { session_id: number }) | null> {
+  const match = await db
     .prepare(
-      `SELECT id, session_id, seq, cycle, a1, a2, b1, b2, sit1, sit2, games_a, games_b
+      `SELECT id, session_id, seq, cycle, a1, a2, b1, b2, sit1, sit2, sets_a, sets_b
        FROM matches WHERE id = ?`,
     )
     .bind(matchId)
-    .first();
+    .first<MatchRow & { session_id: number }>();
+  if (!match) return null;
+  const { results } = await db
+    .prepare("SELECT games_a, games_b FROM sets WHERE match_id = ? ORDER BY n")
+    .bind(matchId)
+    .all<{ games_a: number; games_b: number }>();
+  return { ...match, sets: results.map((st): [number, number] => [st.games_a, st.games_b]) };
 }
 
-/** Logs a result for an unplayed match. A second phone logging the same match is a no-op. */
-export async function logResult(db: D1Database, matchId: number, games: [number, number]): Promise<void> {
+/**
+ * Logs set n of an undecided match. If two phones log the same set, only the
+ * first counts. When the set decides the match, records the sets won, updates
+ * ratings and tops up the schedule.
+ */
+export async function logSet(db: D1Database, matchId: number, n: number, games: [number, number]): Promise<void> {
+  const match = await getMatch(db, matchId);
+  if (!match || match.sets_a !== null || n !== match.sets.length + 1) return;
   const res = await db
-    .prepare(
-      `UPDATE matches SET games_a = ?, games_b = ?, played_at = datetime('now')
-       WHERE id = ? AND games_a IS NULL`,
-    )
-    .bind(games[0], games[1], matchId)
+    .prepare("INSERT OR IGNORE INTO sets (match_id, n, games_a, games_b) VALUES (?, ?, ?, ?)")
+    .bind(matchId, n, games[0], games[1])
     .run();
   if (res.meta.changes === 0) return;
-  await rebuildRatingsFrom(db, matchId);
-  const match = await getMatch(db, matchId);
-  await ensureUpcoming(db, match!.session_id);
-}
-
-/** Changes the score of an already-played match (admin). */
-export async function editResult(db: D1Database, matchId: number, games: [number, number]): Promise<void> {
-  const res = await db
-    .prepare("UPDATE matches SET games_a = ?, games_b = ? WHERE id = ? AND games_a IS NOT NULL")
-    .bind(games[0], games[1], matchId)
-    .run();
-  if (res.meta.changes > 0) await rebuildRatingsFrom(db, matchId);
-}
-
-/** Clears the most recent result in a session, making that match current again. */
-export async function undoLastResult(db: D1Database, sessionId: number, matchId: number): Promise<void> {
-  // matchId must still be the latest result, so a stale Undo button can't undo the wrong match.
-  const res = await db
+  const sets = [...match.sets, games];
+  if (!isDecided(sets)) return;
+  const [a, b] = setsWon(sets);
+  const done = await db
     .prepare(
-      `UPDATE matches SET games_a = NULL, games_b = NULL, played_at = NULL
-       WHERE id = ? AND session_id = ? AND seq = (
-         SELECT MAX(seq) FROM matches WHERE session_id = ? AND games_a IS NOT NULL)`,
+      `UPDATE matches SET sets_a = ?, sets_b = ?, played_at = datetime('now')
+       WHERE id = ? AND sets_a IS NULL`,
     )
-    .bind(matchId, sessionId, sessionId)
+    .bind(a, b, matchId)
     .run();
-  if (res.meta.changes > 0) await rebuildRatingsFrom(db, matchId);
+  if (done.meta.changes === 0) return;
+  await rebuildRatingsFrom(db, matchId);
+  await ensureUpcoming(db, match.session_id);
+}
+
+/** Replaces the set scores of an already-played match (admin). Takes sets checked by parseSets. */
+export async function editResult(db: D1Database, matchId: number, sets: [number, number][]): Promise<void> {
+  const [a, b] = setsWon(sets);
+  const ins = db.prepare("INSERT INTO sets (match_id, n, games_a, games_b) VALUES (?, ?, ?, ?)");
+  await db.batch([
+    db.prepare("UPDATE matches SET sets_a = ?, sets_b = ? WHERE id = ?").bind(a, b, matchId),
+    db.prepare("DELETE FROM sets WHERE match_id = ?").bind(matchId),
+    ...sets.map(([ga, gb], i) => ins.bind(matchId, i + 1, ga, gb)),
+  ]);
+  await rebuildRatingsFrom(db, matchId);
+}
+
+/**
+ * Deletes set n of a match, if it's still the latest set logged in the session
+ * (so a stale Undo button can't undo the wrong set). If the match was decided,
+ * it becomes current again.
+ */
+export async function undoLastSet(db: D1Database, sessionId: number, matchId: number, n: number): Promise<void> {
+  const latest = await db
+    .prepare(
+      `SELECT st.match_id, st.n FROM sets st JOIN matches m ON m.id = st.match_id
+       WHERE m.session_id = ? ORDER BY m.seq DESC, st.n DESC LIMIT 1`,
+    )
+    .bind(sessionId)
+    .first<{ match_id: number; n: number }>();
+  if (!latest || latest.match_id !== matchId || latest.n !== n) return;
+  const [, reopened] = await db.batch([
+    db.prepare("DELETE FROM sets WHERE match_id = ? AND n = ?").bind(matchId, n),
+    db.prepare("UPDATE matches SET sets_a = NULL, sets_b = NULL, played_at = NULL WHERE id = ? AND sets_a IS NOT NULL").bind(matchId),
+  ]);
+  if (reopened.meta.changes > 0) await rebuildRatingsFrom(db, matchId);
 }

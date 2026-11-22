@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { bestPartner, headToHead, nemesis, pairKey, partnerships, records, seasonOf, standings, streak, winPct } from "../src/stats";
 
 let nextId = 1;
+/** A one-set match (the stats only care who won and the games). */
 const m = (a: [number, number], b: [number, number], ga: number, gb: number) => ({
-  id: nextId++, a1: a[0], a2: a[1], b1: b[0], b2: b[1], games_a: ga, games_b: gb,
+  id: nextId++, a1: a[0], a2: a[1], b1: b[0], b2: b[1],
+  sets_a: Number(ga > gb), sets_b: Number(gb > ga), sets: [[ga, gb]] as [number, number][],
 });
 
 describe("records", () => {
@@ -82,6 +84,16 @@ describe("seasons", () => {
 });
 
 describe("standings", () => {
+  it("adds up the games difference over every set", () => {
+    const threeSets = {
+      id: nextId++, a1: 1, a2: 2, b1: 3, b2: 4, sets_a: 2, sets_b: 1,
+      sets: [[5, 3], [1, 5], [5, 4]] as [number, number][], // +2 -4 +1
+    };
+    const s = standings([threeSets]);
+    expect(s.find((x) => x.id === 1)).toMatchObject({ wins: 1, diff: -1 });
+    expect(s.find((x) => x.id === 3)).toMatchObject({ losses: 1, diff: 1 });
+  });
+
   it("sorts by wins, then games difference", () => {
     const s = standings([m([1, 2], [3, 4], 6, 1), m([1, 3], [2, 4], 6, 5), m([1, 4], [2, 3], 2, 6)]);
     expect(s.map((x) => x.id)).toEqual([2, 1, 3, 4]);

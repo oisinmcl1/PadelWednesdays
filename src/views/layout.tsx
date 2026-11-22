@@ -1,5 +1,6 @@
 import type { Child } from "hono/jsx";
 import { formatMoney } from "../money";
+import { formatSets } from "../sessions";
 
 type Props = { title: string; isAdmin: boolean; nav?: boolean; charts?: boolean; children?: Child };
 
@@ -48,3 +49,14 @@ export const PayButton = ({ cents, url }: { cents: number; url: string }) =>
       Pay {formatMoney(cents)}
     </a>
   ) : null;
+
+/** A match result: sets won with the set scores under it, or just the score for an old one-set match. */
+export const Score = ({ m }: { m: { sets_a: number | null; sets_b: number | null; sets: [number, number][] } }) =>
+  m.sets.length === 1 ? (
+    <b class="score">{formatSets(m.sets)}</b>
+  ) : (
+    <b class="score">
+      {m.sets_a}–{m.sets_b}
+      <small>{formatSets(m.sets)}</small>
+    </b>
+  );
