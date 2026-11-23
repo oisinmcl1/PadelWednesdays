@@ -14,7 +14,8 @@ Picks teams, logs results, tracks stats, splits the court cost. Used on phones
 
 ## Access
 - No user accounts. The group link contains a secret token; first visit sets a cookie.
-- Admin PIN (Worker secret) for settings, players, editing results, marking payments.
+- Admin PIN (Worker secret) for running sessions (start, log and undo scores, end), settings,
+  players, editing results, marking payments. Players without it see a read-only match screen.
 
 ## Session flow
 1. Start session: tick who's there (4, 5 or 6). Date defaults to today.

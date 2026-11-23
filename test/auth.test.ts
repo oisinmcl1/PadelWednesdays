@@ -127,3 +127,16 @@ describe("admin PIN", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("running a session is admin only", () => {
+  it.each(["/sessions", "/sessions/end", "/matches/1/result", "/matches/1/undo"])("blocks a member posting to %s", async (path) => {
+    const res = await app.request(path, { method: "POST", headers: { cookie: await memberCookie() } }, env);
+    expect(res.status).toBe(403);
+  });
+
+  it("sends a member to the PIN page for the end screen", async () => {
+    const res = await app.request("/sessions/end", { headers: { cookie: await memberCookie() } }, env);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/admin?next=%2Fsessions%2Fend");
+  });
+});

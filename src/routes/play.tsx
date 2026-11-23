@@ -53,6 +53,15 @@ async function startPage(c: Context<AppEnv>, form: StartForm, error?: string) {
   );
 }
 
+/** What players see between sessions: only the admin starts one. */
+const noSessionPage = (c: Context<AppEnv>) =>
+  c.html(
+    <Layout title="Padel Wednesdays" isAdmin={false}>
+      <h1>No session on</h1>
+      <p class="hint">It'll show here once it starts.</p>
+    </Layout>,
+  );
+
 async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
   // Normally a no-op; tops up the schedule if results were edited behind our back.
   await sessions.ensureUpcoming(c.env.DB, session.id);
@@ -116,9 +125,9 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
         )}
         <form
           method="post"
-          action={`/matches/${current.id}/result`}
+          action={isAdmin ? `/matches/${current.id}/result` : undefined}
           class="match current"
-          data-score-form
+          data-score-form={isAdmin ? "" : undefined}
           data-first-to={String(sessions.WIN_GAMES)}
           data-set={String(setNo)}
           data-sets-a={String(setsA)}
@@ -129,18 +138,18 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
         >
           <div class="team">{names(current.a1, current.a2).map((n) => <span>{n}</span>)}</div>
           {currentOdds && <p class="odds">{currentOdds[0]}% to win</p>}
-          <ScoreTiles team="a" />
+          {isAdmin && <ScoreTiles team="a" />}
           <div class="vs">vs</div>
           <div class="team">{names(current.b1, current.b2).map((n) => <span>{n}</span>)}</div>
           {currentOdds && <p class="odds">{currentOdds[1]}% to win</p>}
-          <ScoreTiles team="b" />
-          <input type="hidden" name="n" value={String(setNo)} />
+          {isAdmin && <ScoreTiles team="b" />}
+          {isAdmin && <input type="hidden" name="n" value={String(setNo)} />}
           {current.sets.length > 0 && <p class="sets-so-far">{sessions.formatSets(current.sets)}</p>}
           {current.sit1 !== null && <p class="sitting">Sitting out: {names(current.sit1, current.sit2).join(" & ")}</p>}
-          <button class="save" data-save>Save set {setNo}</button>
+          {isAdmin && <button class="save" data-save>Save set {setNo}</button>}
         </form>
 
-        {last && lastSet && (
+        {isAdmin && last && lastSet && (
           <form method="post" action={`/matches/${last.id}/undo`} class="last">
             <input type="hidden" name="n" value={String(lastSet.n)} />
             <span>
@@ -180,9 +189,11 @@ async function matchPage(c: Context<AppEnv>, session: sessions.Session) {
           </section>
         )}
 
-        <p class="end-link">
-          <a href="/sessions/end">End session</a>
-        </p>
+        {isAdmin && (
+          <p class="end-link">
+            <a href="/sessions/end">End session</a>
+          </p>
+        )}
       </div>
     </Layout>,
   );
@@ -193,6 +204,7 @@ const formatDate = sessions.formatDate;
 play.get("/", async (c) => {
   const session = await sessions.getActiveSession(c.env.DB);
   if (session) return matchPage(c, session);
+  if (!c.get("isAdmin")) return noSessionPage(c);
   const settings = await db.getSettings(c.env.DB);
   return startPage(c, {
     date: sessions.todayInIreland(),
@@ -202,7 +214,7 @@ play.get("/", async (c) => {
   });
 });
 
-play.post("/sessions", async (c) => {
+play.post("/sessions", requireAdmin, async (c) => {
   const body = await c.req.parseBody({ all: true });
   const ids = [body.players ?? []].flat().map(String);
   const form: StartForm = {
@@ -232,7 +244,7 @@ play.post("/sessions", async (c) => {
   return c.redirect("/", 303);
 });
 
-play.get("/sessions/end", async (c) => {
+play.get("/sessions/end", requireAdmin, async (c) => {
   const session = await sessions.getActiveSession(c.env.DB);
   if (!session) return c.redirect("/");
   const [players, attendees, settings, turn] = await Promise.all([
@@ -280,7 +292,7 @@ play.get("/sessions/end", async (c) => {
   );
 });
 
-play.post("/sessions/end", async (c) => {
+play.post("/sessions/end", requireAdmin, async (c) => {
   const session = await sessions.getActiveSession(c.env.DB);
   const body = await c.req.parseBody();
   // The id guards against ending a session someone else just started.
@@ -293,7 +305,7 @@ play.post("/sessions/end", async (c) => {
   return c.redirect(outcome === "ended" ? `/history/${session.id}` : "/", 303);
 });
 
-play.post("/matches/:id{[0-9]+}/result", async (c) => {
+play.post("/matches/:id{[0-9]+}/result", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   const games = sessions.parseGames(body.a, body.b);
   if (!games) return c.redirect("/?bad=1", 303);
@@ -301,7 +313,7 @@ play.post("/matches/:id{[0-9]+}/result", async (c) => {
   return c.redirect("/", 303);
 });
 
-play.post("/matches/:id{[0-9]+}/undo", async (c) => {
+play.post("/matches/:id{[0-9]+}/undo", requireAdmin, async (c) => {
   const session = await sessions.getActiveSession(c.env.DB);
   const body = await c.req.parseBody();
   if (session) await sessions.undoLastSet(c.env.DB, session.id, Number(c.req.param("id")), Number(body.n));
