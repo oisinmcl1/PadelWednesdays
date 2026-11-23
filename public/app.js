@@ -39,3 +39,10 @@
     if (form) update(form);
   });
 })();
+
+// Pay buttons: copy the payment reference as Revolut opens, ready to paste.
+// The reference is shown under the button too, for when copying isn't allowed.
+document.addEventListener("click", (e) => {
+  const link = e.target.closest && e.target.closest("[data-copy]");
+  if (link && navigator.clipboard) navigator.clipboard.writeText(link.dataset.copy).catch(() => {});
+});

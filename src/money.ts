@@ -39,3 +39,15 @@ export function normaliseRevolutUrl(input: string): string | null {
   const m = /^revolut\.me\/([A-Za-z0-9._-]+)\/?$/i.exec(rest);
   return m ? `https://revolut.me/${m[1]}` : null;
 }
+
+/**
+ * The reference to put on a payment, so the payer can match it in their Revolut feed:
+ * "Padel 19 Nov", "Padel 12 Nov, 19 Nov", or "Padel 4 weeks to 19 Nov" past three dates.
+ * Dates are ISO (YYYY-MM-DD), oldest first.
+ */
+export function paymentReference(dates: string[]): string {
+  const short = (iso: string) =>
+    new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  if (dates.length > 3) return `Padel ${dates.length} weeks to ${short(dates[dates.length - 1])}`;
+  return `Padel ${dates.map(short).join(", ")}`;
+}

@@ -42,12 +42,18 @@ export const Layout = ({ title, isAdmin, nav = true, charts = false, children }:
 export const ErrorText = ({ error }: { error?: string }) =>
   error ? <p class="error" role="alert">{error}</p> : null;
 
-/** Opens the payer's Revolut.me link. Revolut has no documented way to pre-fill the amount, so we show it. */
-export const PayButton = ({ cents, url }: { cents: number; url: string }) =>
+/**
+ * Opens the payer's Revolut.me link. Revolut has no documented way to pre-fill the amount
+ * or reference, so we show both; app.js also copies the reference on tap, ready to paste.
+ */
+export const PayButton = ({ cents, url, reference }: { cents: number; url: string; reference: string }) =>
   url ? (
-    <a class="button small" href={url} target="_blank" rel="noopener">
-      Pay {formatMoney(cents)}
-    </a>
+    <span class="pay">
+      <a class="button small" href={url} target="_blank" rel="noopener" data-copy={reference}>
+        Pay {formatMoney(cents)}
+      </a>
+      <small class="hint">Ref: {reference}</small>
+    </span>
   ) : null;
 
 /** A match result: sets won with the set scores under it, or just the score for an old one-set match. */

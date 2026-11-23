@@ -3,7 +3,7 @@ import { raw } from "hono/html";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
 import * as ledger from "../ledger";
-import { formatMoney, parseMoney } from "../money";
+import { formatMoney, parseMoney, paymentReference } from "../money";
 import * as sessions from "../sessions";
 import type { AppEnv } from "../types";
 import { standings } from "../stats";
@@ -99,7 +99,7 @@ history.get("/:id{[0-9]+}", async (c) => {
                   <span class="name">{name.get(s.player_id)}</span>
                   {/* The amount shows once: on the Pay button when there is one. */}
                   {(s.paid_at || !settings.revolutUrl) && <span>{formatMoney(s.share_cents ?? 0)}</span>}
-                  {s.paid_at ? <span class="ok">Paid</span> : <PayButton cents={s.share_cents ?? 0} url={settings.revolutUrl} />}
+                  {s.paid_at ? <span class="ok">Paid</span> : <PayButton cents={s.share_cents ?? 0} url={settings.revolutUrl} reference={paymentReference([session.date])} />}
                   {isAdmin && (
                     <form method="post" action="/money/paid">
                       <input type="hidden" name="session" value={String(session.id)} />

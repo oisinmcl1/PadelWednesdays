@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, normaliseRevolutUrl, parseMoney } from "../src/money";
+import { formatMoney, normaliseRevolutUrl, parseMoney, paymentReference } from "../src/money";
 
 describe("parseMoney", () => {
   it.each([
@@ -40,4 +40,14 @@ describe("normaliseRevolutUrl", () => {
     "rejects %j",
     (input) => expect(normaliseRevolutUrl(input)).toBeNull(),
   );
+});
+
+describe("paymentReference", () => {
+  it("names one session", () => expect(paymentReference(["2026-11-18"])).toBe("Padel 18 Nov"));
+  it("lists up to three", () =>
+    expect(paymentReference(["2026-11-04", "2026-11-11", "2026-11-18"])).toBe("Padel 4 Nov, 11 Nov, 18 Nov"));
+  it("summarises more", () =>
+    expect(paymentReference(["2026-10-28", "2026-11-04", "2026-11-11", "2026-11-18"])).toBe(
+      "Padel 4 weeks to 18 Nov",
+    ));
 });

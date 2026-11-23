@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { requireAdmin } from "../auth";
 import * as db from "../db";
 import * as ledger from "../ledger";
-import { formatMoney } from "../money";
+import { formatMoney, paymentReference } from "../money";
 import { formatDate } from "../sessions";
 import type { AppEnv } from "../types";
 import { Layout, PayButton } from "../views/layout";
@@ -61,7 +61,7 @@ money.get("/", async (c) => {
                   </form>
                 )}
               </details>
-              <PayButton cents={o.total} url={settings.revolutUrl} />
+              <PayButton cents={o.total} url={settings.revolutUrl} reference={paymentReference(o.debts.map((d) => d.date))} />
             </li>
           ))}
         </ul>
