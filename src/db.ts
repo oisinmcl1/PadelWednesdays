@@ -5,6 +5,7 @@ export type Player = {
   name: string;
   active: number;
   ball_order: number | null;
+  guest: number;
 };
 
 export type Settings = {
@@ -15,11 +16,22 @@ export type Settings = {
 
 // ---------- players ----------
 
+export const cleanName = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "");
+export const validName = (n: string) => n.length >= 1 && n.length <= 30;
+
+/** Comma-separated guest names, tidied and de-duplicated. Null if any name is too long. */
+export function parseGuestNames(v: unknown): string[] | null {
+  const names = String(v ?? "").split(",").map(cleanName).filter((n) => n !== "");
+  if (!names.every(validName)) return null;
+  const seen = new Set<string>();
+  return names.filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
+}
+
 /** Active players first, each group in ball-rotation order. */
 export async function listPlayers(db: D1Database): Promise<Player[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, name, active, ball_order FROM players
+      `SELECT id, name, active, ball_order, guest FROM players
        ORDER BY active DESC, ball_order IS NULL, ball_order, name`,
     )
     .all<Player>();
@@ -27,7 +39,7 @@ export async function listPlayers(db: D1Database): Promise<Player[]> {
 }
 
 export async function getPlayer(db: D1Database, id: number): Promise<Player | null> {
-  return db.prepare("SELECT id, name, active, ball_order FROM players WHERE id = ?").bind(id).first<Player>();
+  return db.prepare("SELECT id, name, active, ball_order, guest FROM players WHERE id = ?").bind(id).first<Player>();
 }
 
 /** New players join the end of the ball rotation. Returns false if the name is taken. */
@@ -55,6 +67,30 @@ export async function renamePlayer(db: D1Database, id: number, name: string): Pr
     if (String(e).includes("UNIQUE")) return false;
     throw e;
   }
+}
+
+/**
+ * The id of the player with this name, adding them as a guest if there's nobody by that
+ * name. So a returning guest (or a lapsed regular) keeps their history.
+ */
+export async function guestId(db: D1Database, name: string): Promise<number> {
+  await db
+    .prepare("INSERT INTO players (name, active, guest) VALUES (?, 0, 1) ON CONFLICT(name) DO NOTHING")
+    .bind(name)
+    .run();
+  return (await db.prepare("SELECT id FROM players WHERE name = ?").bind(name).first<{ id: number }>())!.id;
+}
+
+/** Turns a guest into a regular: active, at the end of the ball rotation. */
+export async function makeRegular(db: D1Database, id: number): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE players SET guest = 0, active = 1,
+         ball_order = (SELECT COALESCE(MAX(ball_order), 0) + 1 FROM players)
+       WHERE id = ? AND guest = 1`,
+    )
+    .bind(id)
+    .run();
 }
 
 export async function setPlayerActive(db: D1Database, id: number, active: boolean): Promise<void> {

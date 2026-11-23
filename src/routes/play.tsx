@@ -9,7 +9,7 @@ import { ErrorText, Layout, Score } from "../views/layout";
 
 const play = new Hono<AppEnv>();
 
-type StartForm = { date: string; price: string; players: string[] };
+type StartForm = { date: string; price: string; players: string[]; guests: string };
 
 async function startPage(c: Context<AppEnv>, form: StartForm, error?: string) {
   const players = (await db.listPlayers(c.env.DB)).filter((p) => p.active);
@@ -31,6 +31,10 @@ async function startPage(c: Context<AppEnv>, form: StartForm, error?: string) {
               </label>
             ))}
           </div>
+          <label>
+            Guests
+            <input name="guests" value={form.guests} placeholder="Name, name" autocomplete="off" />
+          </label>
           <div class="row">
             <label class="grow">
               Date
@@ -194,22 +198,36 @@ play.get("/", async (c) => {
     date: sessions.todayInIreland(),
     price: formatMoney(settings.courtPriceCents).slice(1),
     players: [],
+    guests: "",
   });
 });
 
 play.post("/sessions", async (c) => {
   const body = await c.req.parseBody({ all: true });
   const ids = [body.players ?? []].flat().map(String);
-  const form: StartForm = { date: String(body.date ?? ""), price: String(body.price ?? ""), players: ids };
+  const form: StartForm = {
+    date: String(body.date ?? ""),
+    price: String(body.price ?? ""),
+    players: ids,
+    guests: String(body.guests ?? ""),
+  };
 
   const active = new Set((await db.listPlayers(c.env.DB)).filter((p) => p.active).map((p) => String(p.id)));
-  const chosen = [...new Set(ids)].filter((id) => active.has(id));
-  if (chosen.length < 4 || chosen.length > 6) return startPage(c, form, "Pick 4, 5 or 6 players.");
+  const chosen = [...new Set(ids)].filter((id) => active.has(id)).map(Number);
+  const guests = db.parseGuestNames(form.guests);
+  if (guests === null) return startPage(c, form, "Guest names must be 1–30 characters.");
+  const count = chosen.length + guests.length;
+  if (count < 4 || count > 6) return startPage(c, form, "Pick 4, 5 or 6 players.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) return startPage(c, form, "Pick a date.");
   const cents = parseMoney(form.price);
   if (cents === null) return startPage(c, form, "Invalid price.");
 
-  await sessions.startSession(c.env.DB, form.date, cents, chosen.map(Number));
+  // Only now (the form is valid) add any new guests. A guest name that's a ticked player counts once.
+  const everyone = new Set(chosen);
+  for (const g of guests) everyone.add(await db.guestId(c.env.DB, g));
+  if (everyone.size < 4) return startPage(c, form, "Pick 4, 5 or 6 players.");
+
+  await sessions.startSession(c.env.DB, form.date, cents, [...everyone]);
   // If someone else started one at the same moment, theirs wins; either way go to it.
   return c.redirect("/", 303);
 });

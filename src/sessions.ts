@@ -195,7 +195,7 @@ export async function ballTurnFor(db: D1Database, sessionId: number): Promise<nu
       .prepare(
         `SELECT ball_order FROM (
            SELECT p.ball_order, 1 AS pri, s.date, s.id FROM sessions s JOIN players p ON p.id = s.ball_buyer_id
-           WHERE s.status = 'ended'
+           WHERE s.status = 'ended' AND p.ball_order IS NOT NULL -- a guest buying doesn't move the rotation
            UNION ALL
            SELECT p.ball_order, 2, '', 0 FROM settings st JOIN players p ON p.id = CAST(st.value AS INTEGER)
            WHERE st.key = 'last_ball_buyer_id'

@@ -7,14 +7,14 @@ import { ErrorText, Layout } from "../views/layout";
 
 const players = new Hono<AppEnv>();
 
-const cleanName = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "");
-const validName = (n: string) => n.length >= 1 && n.length <= 30;
+const { cleanName, validName } = db;
 
 async function page(c: Context<AppEnv>, error?: string) {
   const isAdmin: boolean = c.get("isAdmin");
   const list = await db.listPlayers(c.env.DB);
   const active = list.filter((p) => p.active);
-  const inactive = list.filter((p) => !p.active);
+  const inactive = list.filter((p) => !p.active && !p.guest);
+  const guests = list.filter((p) => p.guest);
   return c.html(
     <Layout title="Players" isAdmin={isAdmin}>
       <h1>Players</h1>
@@ -54,6 +54,19 @@ async function page(c: Context<AppEnv>, error?: string) {
           </ul>
         </>
       )}
+      {guests.length > 0 && (
+        <>
+          <h2>Guests</h2>
+          <ul class="list muted">
+            {guests.map((p) => (
+              <li>
+                <span class="name">{p.name}</span>
+                {isAdmin && <a href={`/players/${p.id}`} class="button">Edit</a>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </Layout>,
     error ? 400 : 200,
   );
@@ -68,10 +81,16 @@ async function editPage(c: Context<AppEnv>, p: db.Player, error?: string) {
         <input name="name" value={p.name} maxlength={30} required />
         <button>Rename</button>
       </form>
-      <form method="post" action={`/players/${p.id}/active`}>
-        <input type="hidden" name="active" value={p.active ? "0" : "1"} />
-        <button class={p.active ? "secondary" : ""}>{p.active ? "Mark inactive" : "Mark active"}</button>
-      </form>
+      {p.guest ? (
+        <form method="post" action={`/players/${p.id}/regular`}>
+          <button>Make regular</button>
+        </form>
+      ) : (
+        <form method="post" action={`/players/${p.id}/active`}>
+          <input type="hidden" name="active" value={p.active ? "0" : "1"} />
+          <button class={p.active ? "secondary" : ""}>{p.active ? "Mark inactive" : "Mark active"}</button>
+        </form>
+      )}
       <p><a href="/players">← Back to players</a></p>
     </Layout>,
     error ? 400 : 200,
@@ -104,6 +123,11 @@ players.post("/:id{[0-9]+}/rename", requireAdmin, async (c) => {
 players.post("/:id{[0-9]+}/active", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   await db.setPlayerActive(c.env.DB, Number(c.req.param("id")), body.active === "1");
+  return c.redirect("/players", 303);
+});
+
+players.post("/:id{[0-9]+}/regular", requireAdmin, async (c) => {
+  await db.makeRegular(c.env.DB, Number(c.req.param("id")));
   return c.redirect("/players", 303);
 });
 

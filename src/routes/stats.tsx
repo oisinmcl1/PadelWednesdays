@@ -19,7 +19,7 @@ function heat(pct: number) {
 statsRoutes.get("/", async (c) => {
   const [players, matches] = await Promise.all([db.listPlayers(c.env.DB), playedMatches(c.env.DB)]);
   const recs = stats.records(matches);
-  const people = players.filter((p) => recs.has(p.id));
+  const people = players.filter((p) => !p.guest && recs.has(p.id));
   const pairs = stats.partnerships(matches);
 
   return c.html(

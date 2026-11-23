@@ -21,7 +21,7 @@ leaderboard.get("/", async (c) => {
     : latestRatings(await ratingRowsInOrder(c.env.DB));
   const recs = records(matches);
   const rows = players
-    .filter((p) => recs.has(p.id) && ratings.has(p.id))
+    .filter((p) => !p.guest && recs.has(p.id) && ratings.has(p.id))
     .map((p) => ({ ...p, rating: displayRating(ratings.get(p.id)!), rec: recs.get(p.id)! }))
     .sort((x, y) => y.rating - x.rating);
 
