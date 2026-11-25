@@ -1,5 +1,5 @@
 import type { Child } from "hono/jsx";
-import { formatMoney } from "../money";
+import { formatMoney, revolutPayUrl } from "../money";
 import { formatSets } from "../sessions";
 
 type Props = { title: string; isAdmin: boolean; nav?: boolean; charts?: boolean; children?: Child };
@@ -43,13 +43,14 @@ export const ErrorText = ({ error }: { error?: string }) =>
   error ? <p class="error" role="alert">{error}</p> : null;
 
 /**
- * Opens the payer's Revolut.me link. Revolut has no documented way to pre-fill the amount
- * or reference, so we show both; app.js also copies the reference on tap, ready to paste.
+ * Opens the payer's Revolut.me link with the amount and reference pre-filled (via revolut.me's
+ * undocumented query params). In case Revolut ignores them, we still show the reference and
+ * app.js copies it on tap, ready to paste.
  */
 export const PayButton = ({ cents, url, reference }: { cents: number; url: string; reference: string }) =>
   url ? (
     <span class="pay">
-      <a class="button small" href={url} target="_blank" rel="noopener" data-copy={reference}>
+      <a class="button small" href={revolutPayUrl(url, cents, reference)} target="_blank" rel="noopener" data-copy={reference}>
         Pay {formatMoney(cents)}
       </a>
       <small class="hint">Ref: {reference}</small>

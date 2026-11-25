@@ -40,14 +40,31 @@ export function normaliseRevolutUrl(input: string): string | null {
   return m ? `https://revolut.me/${m[1]}` : null;
 }
 
+/** Revolut's limit on a payment note. */
+const REVOLUT_NOTE_MAX = 64;
+
 /**
- * The reference to put on a payment, so the payer can match it in their Revolut feed:
- * "Padel 19 Nov", "Padel 12 Nov, 19 Nov", or "Padel 4 weeks to 19 Nov" past three dates.
- * Dates are ISO (YYYY-MM-DD), oldest first.
+ * The Revolut.me link with the amount (pence), currency and note pre-filled. revolut.me
+ * accepts these query params but doesn't document them, so callers keep a fallback.
+ */
+export function revolutPayUrl(base: string, cents: number, reference: string): string {
+  const params = new URLSearchParams({
+    currency: "GBP",
+    amount: String(cents),
+    note: reference.slice(0, REVOLUT_NOTE_MAX),
+  });
+  return `${base}?${params}`;
+}
+
+/**
+ * The reference to put on a payment, so the payer can match it in their Revolut feed.
+ * Lists every date while it fits in Revolut's 64-char note ("Padel 12 Nov, 19 Nov, 26 Nov"),
+ * otherwise summarises ("Padel 9 weeks to 26 Nov"). Dates are ISO (YYYY-MM-DD), oldest first.
  */
 export function paymentReference(dates: string[]): string {
   const short = (iso: string) =>
     new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-  if (dates.length > 3) return `Padel ${dates.length} weeks to ${short(dates[dates.length - 1])}`;
-  return `Padel ${dates.map(short).join(", ")}`;
+  const all = `Padel ${dates.map(short).join(", ")}`;
+  if (all.length <= REVOLUT_NOTE_MAX) return all;
+  return `Padel ${dates.length} weeks to ${short(dates[dates.length - 1])}`;
 }
